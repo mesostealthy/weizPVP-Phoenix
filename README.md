@@ -4,7 +4,7 @@
 
 
 
-weizPVP (Reborn) \[Patched for The War Within]
+weizPVP (Phoenix) \[Patched for The War Within]
 
 
 
