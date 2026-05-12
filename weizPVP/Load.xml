@@ -4,7 +4,7 @@
 	<Include file="Libs\Load.xml" />
 	<!-- :CORE -->
 	<Script file="Init.lua" />
-  <Include file="Config\Load.xml" />
+	<Include file="Config\Load.xml" />
 	<Script file="Core.lua" />
 	<Include file="UI\Load.xml" />
 	<Include file="Data\Load.xml" />

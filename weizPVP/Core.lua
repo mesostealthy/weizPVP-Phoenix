@@ -56,13 +56,13 @@ end
 
 -- ⚒️ Reset All Customization <----------------------------------------
 function NS.ResetAllCustomizations()
-	NS.Options.Frames.Header = CopyTable(NS._DefaultOptions.profile.Options.Frames.Header)
-	NS.Options.Frames.StatusPopUp = CopyTable(NS._DefaultOptions.profile.Options.Frames.StatusPopUp)
-	NS.Options.Bars = CopyTable(NS._DefaultOptions.profile.Options.Bars)
-	NS.Options.Frames.Scale = NS._DefaultOptions.profile.Options.Frames.Scale
-	NS.Options.Frames.AutoScaleEnabled = NS._DefaultOptions.profile.Options.Frames.AutoScaleEnabled
-	NS.Options.Frames.AutoScaleMultiplier = NS._DefaultOptions.profile.Options.Frames.AutoScaleMultiplier
-	NS.Options.Frames.BackgroundColor = NS._DefaultOptions.profile.Options.Frames.BackgroundColor
+	NS.Options.Frames.Header = CopyTable(NS._DefaultProfileOptions.profile.Options.Frames.Header)
+	NS.Options.Frames.StatusPopUp = CopyTable(NS._DefaultProfileOptions.profile.Options.Frames.StatusPopUp)
+	NS.Options.Bars = CopyTable(NS._DefaultProfileOptions.profile.Options.Bars)
+	NS.Options.Frames.Scale = NS._DefaultProfileOptions.profile.Options.Frames.Scale
+	NS.Options.Frames.AutoScaleEnabled = NS._DefaultProfileOptions.profile.Options.Frames.AutoScaleEnabled
+	NS.Options.Frames.AutoScaleMultiplier = NS._DefaultProfileOptions.profile.Options.Frames.AutoScaleMultiplier
+	NS.Options.Frames.BackgroundColor = NS._DefaultProfileOptions.profile.Options.Frames.BackgroundColor
 	NS.CoreUI.Initialize()
 end
 

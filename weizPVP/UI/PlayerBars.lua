@@ -22,7 +22,7 @@ function NS.CoreUI.BuildBars()
 	for k = 1, NS.Options.Bars.MaxNumBars do
 		NS.CoreUI.Bar[k] = NS.CoreUI.Bar[k] or CreateFrame("StatusBar", "weizPVP_PlayerBar" .. k, weizPVP_CoreFrame.ScrollFrame.ListFrame)
 		NS.CoreUI.Bar[k].id = k
-		NS.CoreUI.Bar[k].fullName = ""
+		NS.CoreUI.Bar[k].NAME = ""
 		NS.CoreUI.Bar[k].displayGuild = ""
 		NS.CoreUI.Bar[k].displayName = ""
 		NS.CoreUI.Bar[k]:SetHeight(NS.Options.Bars.RowHeight)
@@ -155,10 +155,10 @@ end
 
 --> PLAYER BAR: PRE-CLICK <------------------------------------------
 function NS.CoreUI.ButtonPreClick(barID, MouseButton)
-	if not NS.CoreUI.Bar[barID].fullName then
+	if not NS.CoreUI.Bar[barID].NAME then
 		return
 	end
-	local playerName = NS.CoreUI.Bar[barID].fullName
+	local playerName = NS.CoreUI.Bar[barID].NAME
 	UIFrameFadeIn(NS.CoreUI.Bar[barID].Highlight, 0.05, 0.15, 0.3)
 	if playerName then
 		if MouseButton == "LeftButton" then
@@ -175,8 +175,8 @@ function NS.CoreUI.ButtonPostClick(barID, MouseButton)
 	if MouseButton == "LeftButton" then
 		local PID = NS.CoreUI.Bar[barID].PID
 		if PID and NS.PlayerActiveCache[PID] then
-			local TID = NS.GetPlayerIDByUnit("target")
-			if PID ~= TID then
+			local currentPID = NS.GetPIDForUnit("target")
+			if currentPID ~= PID then
 				if NS.ActiveList[PID] then
 					NS.InactiveList[PID] = NS.ActiveList[PID]
 					NS.InactiveList[PID].TimeUpdated = GetTime() + NS.Options.Sorting.NearbyActiveTimeout + 0.1

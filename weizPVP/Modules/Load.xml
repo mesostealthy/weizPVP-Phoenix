@@ -6,7 +6,6 @@
 	<Script file="Pulse.lua" />
 	<Script file="Alerts.lua" />
 	<Script file="LDB.lua" />
-	<Script file="DynamicProcessing.lua" />
 	<Script file="PlayerLists.lua" />
 	<Script file="NamePlates.lua" />
 	<Script file="NearbyList.lua" />

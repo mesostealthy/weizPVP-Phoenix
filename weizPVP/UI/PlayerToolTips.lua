@@ -27,26 +27,26 @@ function NS.ShowPlayerTooltip(PID)
 	end
 	if PID and NS.PlayerActiveCache[PID] then
 		-- Has Real Name?
-		local formattedName, fullName, realm
-		if NS.PlayerActiveCache[PID].realName then
+		local formattedName, NAME, realm
+		if NS.PlayerActiveCache[PID].NAME then
 			-- Get player info
-			fullName = NS.PlayerActiveCache[PID].realName
-			local name, realmName = strsplit("-", fullName)
-			formattedName = gsub(fullName, "-(.*)", "")
+			NAME = NS.PlayerActiveCache[PID].NAME
+			local name, realmName = strsplit("-", NAME)
+			formattedName = gsub(NAME, "-(.*)", "")
 			NS.PlayerActiveCache[PID].displayName = formattedName
-			if not realmName then
-				realmName = NS.PlayerRealm
-			end
+			realmName = NS.PlayerActiveCache[PID].Realm
 
 			-- Realm
-			if realmName == NS.Player.FromSubRealm then
+			if not realmName then
 				realm = "|cff75e6ff" .. NS.Player.FromSubRealm .. "|r" -- blue for same realm
 			else
 				realm = "|cFFFF00CC" .. realmName .. "|r" -- bright purple for other realms
 			end
 		else
+			-- Get player info
 			NS.PlayerActiveCache[PID].displayName = NS.PlayerActiveCache[PID].Name
 			formattedName = NS.PlayerActiveCache[PID].Name
+			realm = NS.PlayerActiveCache[PID].Realm
 		end
 
 		local class = NS.PlayerActiveCache[PID].C
@@ -87,7 +87,7 @@ function NS.ShowPlayerTooltip(PID)
 		end
 
 		-- * KOS check
-		if not issecretvalue(fullName) and NS.KosList[fullName] then
+		if not issecretvalue(NAME) and NS.KosList[NAME] then
 			titleLeft = titleLeft ..
 				"|TInterface/Addons/weizPVP/Media/Icons/kos.tga:0|t |cFFFF0040>|r" ..
 				WrapTextInColorCode(formattedName .. "|cFFFF0040<|r", select(4, GetClassColor(class)))

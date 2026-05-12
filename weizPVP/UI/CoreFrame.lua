@@ -382,6 +382,7 @@ local function CoreBarInit()
 				if button == "LeftButton" then
 					NS.ClearListData()
 					self.ClearAnim:Play()
+					NS.RefreshAllNamePlates()
 				end
 			end
 		)
@@ -668,7 +669,7 @@ function NS.CoreUI.ChangeTargetIcon()
 	if not weizPVP_CoreFrame.TargetedIcon then
 		return
 	end
-	local PID = NS.GetPlayerIDByUnit(unit)
+	local PID = NS.GetPIDForUnit("target")
 	if NS.PlayersOnBars[PID] then
 		if weizPVP_CoreFrame:GetLeft() < 8 then
 			weizPVP_CoreFrame.TargetedIcon:SetRotation(3.14159)

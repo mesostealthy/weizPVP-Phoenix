@@ -11,10 +11,6 @@ local tinsert, sort, wipe = tinsert, sort, wipe
 local pairs = pairs
 local GetTime = GetTime
 
---: NS Lists :-------------------------
-NS.CurrentNameplates = {}
-NS.CurrentNameplatesSize = {}
-
 NS.Nearby = {}
 
 NS.NearbyListSize = 0
@@ -27,72 +23,6 @@ NS.InactiveDeadList = {}
 
 NS.PlayersOnBars = {}
 NS.PlayersOnBarsSize = {}
-
---> Manage List Timeouts <-------------------------------------------
-function NS.ManageNearbyListTimeouts()
-	local expired = false
-	local removed = false
-	local expiredCount = 0
-	local count = 1
-	local timestamp = GetTime()
-	--: ACTIVE
-	for PID in pairs(NS.ActiveList) do
-		if (timestamp - NS.ActiveList[PID].TimeUpdated) > NS.Options.Sorting.NearbyActiveTimeout and
-			NS.CurrentNameplates[PID] == nil then
-			NS.InactiveList[PID] = NS.ActiveList[PID]
-			NS.InactiveList[PID].TimeAdded = timestamp + (count * 0.001)
-			NS.ActiveList[PID] = nil
-			count = count + 1
-			expired = true
-		end
-	end
-	count = 0
-	--: ACTIVE DEAD
-	timestamp = GetTime()
-	for PID in pairs(NS.ActiveDeadList) do
-		if (timestamp - NS.ActiveDeadList[PID].TimeUpdated) > NS.Options.Sorting.NearbyActiveTimeout then
-			NS.InactiveDeadList[PID] = NS.ActiveDeadList[PID]
-			NS.InactiveDeadList[PID].TimeAdded = timestamp + (count * 0.001)
-			NS.ActiveDeadList[PID] = nil
-			expired = true
-			count = count + 1
-		end
-	end
-	--: INACTIVE
-	timestamp = GetTime()
-	for PID in pairs(NS.InactiveList) do
-		if (timestamp - NS.InactiveList[PID].TimeUpdated) > NS.Options.Sorting.NearbyInactiveTimeout then
-			NS.InactiveList[PID] = nil
-			NS.NearbyList[PID] = nil
-			NS.PlayerActiveCache[PID] = nil
-			expiredCount = expiredCount + 1
-			expired = true
-			removed = true
-		end
-	end
-	--: INACTIVE DEAD
-	timestamp = GetTime()
-	for PID in pairs(NS.InactiveDeadList) do
-		if (timestamp - NS.InactiveDeadList[PID].TimeUpdated) > NS.Options.Sorting.NearbyInactiveTimeout then
-			NS.InactiveDeadList[PID] = nil
-			NS.NearbyList[PID] = nil
-			NS.PlayerActiveCache[PID] = nil
-			expiredCount = expiredCount + 1
-			expired = true
-			removed = true
-		end
-	end
-	if expired or removed then
-		NS.NearbyListSize = NS.NearbyListSize - expiredCount
-		NS.SortNearbyList()
-		NS.UpdateNearbyCount()
-		NS.RefreshCurrentList()
-		NS.CoreUI.ChangeTargetIcon()
-	end
-	if removed then
-		NS.ManageBarsDisplayed()
-	end
-end
 
 --> Sort Nearby List <-----------------------------------------------
 local tempCurrentList = {}
@@ -203,7 +133,6 @@ end
 function NS.ClearNearbyListData()
 	if NS.NearbyCount ~= 0 then
 		wipe(NS.CurrentList)
-		wipe(NS.CurrentNameplates)
 		wipe(NS.NearbyList)
 		wipe(NS.ActiveList)
 		wipe(NS.InactiveList)

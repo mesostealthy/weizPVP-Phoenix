@@ -354,12 +354,29 @@ local customizeGroup = {
 					end,
 					itemControl = "DDI-Statusbar"
 				},
+				BarUpdateHealth = {
+					name = " Update Health",
+					desc = "Process UPDATE_HEALTH messages to show current HP\n",
+					type = "toggle",
+					order = 3,
+					width = "full",
+					get = function()
+						return NS.Options.Bars.UpdateHealth
+					end,
+					set = function(_, value)
+						if value then
+							NS.Options.Bars.UpdateHealth = true
+						else
+							NS.Options.Bars.UpdateHealth = false
+						end
+					end
+				},
 				--> spacer
 				spacer_1 = {
 					name = "\n\n",
 					type = "description",
 					width = "full",
-					order = 3
+					order = 4
 				},
 				fontsGroup = {
 					name = "Fonts",
@@ -1435,33 +1452,25 @@ local labGroup = {
 			width = "full",
 			order = 2
 		},
-		--> DynamicProcessing
-		DynamicProcessingModeGroup = {
-			name = NS.ColorsLUT["info"]:WrapTextInColorCode("Dynamic Processing"),
+		BattleGroundGroup = {
+			name = NS.ColorsLUT["info"]:WrapTextInColorCode("Battleground (inside matches)"),
 			type = "group",
 			inline = true,
 			order = 10,
 			args = {
-				tips = {
-					type = "description",
-					fontSize = "small",
-					name = "The Dynamic Processing option will change the way weizPVP detects players based on a few different factors.\n" ..
-						"This option aims to reduce processing by selectively turning different detection methods on or off.\n\n",
-					width = "full",
-					order = 1
-				},
-				DynamicProcessing = {
-					name = "Enable Dynamic Processing",
+				SpecText = {
+					name = " Specialization Text (on Nameplates)",
+					desc = "This will attempt to add your target's Specialization to their nameplate during Battlegrounds.",
 					type = "toggle",
 					width = "full",
-					order = 10,
+					order = 1,
 					get = function()
-						return NS.Options.Lab.DynamicProcessing
+						return NS.Options.BattleGrounds.SpecText
 					end,
 					set = function(_, value)
-						NS.Options.Lab.DynamicProcessing = value
+						NS.Options.BattleGrounds.SpecText = value
 					end
-				}
+				},
 			}
 		},
 		SortingGroup = {
@@ -1578,7 +1587,9 @@ function NS.CreateInterfaceOptions()
 	}
 
 	LibStub("AceConfig-3.0"):RegisterOptionsTable(ADDON_NAME, OptionsTable)
-	local category, layout = LibStub("AceConfigDialog-3.0"):AddToBlizOptions(ADDON_NAME, ADDON_NAME)
-	weizPVP.category = category
-	weizPVP.layout = layout
+	weizPVP.category, weizPVP.layout = LibStub("AceConfigDialog-3.0"):AddToBlizOptions(ADDON_NAME, ADDON_NAME)
+
+	weizPVP.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(NS.charDB)
+	LibStub("AceConfig-3.0"):RegisterOptionsTable(ADDON_NAME .. "_Profiles", weizPVP.profiles)
+	weizPVP.profilesFrame, weizPVP.profilesID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions(ADDON_NAME .. "_Profiles", "Profiles", ADDON_NAME)
 end

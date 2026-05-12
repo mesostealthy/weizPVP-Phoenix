@@ -50,9 +50,9 @@ function NS.PlayerBarMenu_OnClick(bar)
 	if not bar then
 		return
 	end
-	if not issecretvalue(bar.fullName) then
-		NS.KOS.menuPlayerName = bar.fullName
+	if not issecretvalue(bar.NAME) then
 		menuPlayerID = bar.PID
+		NS.KOS.menuPlayerName = bar.NAME
 		ToggleDropDownMenu(1, nil, weizPVP_PlayerBarMenu, "cursor", 0, 0)
 	end
 end

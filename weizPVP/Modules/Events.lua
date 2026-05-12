@@ -15,13 +15,14 @@ function NS.EnableEvents()
 	-- ADDON
 	weizPVP:RegisterEvent("ADDON_LOADED", NS.AddonLoadedEvent)
 	-- DATA COLLECTION
-	weizPVP:RegisterEvent("NAME_PLATE_UNIT_ADDED", NS.NameplateAdded)
-	weizPVP:RegisterEvent("NAME_PLATE_UNIT_REMOVED", NS.NameplateRemoved)
-	weizPVP:RegisterEvent("PLAYER_TARGET_CHANGED", NS.PlayerTargetEvent)
-	weizPVP:RegisterEvent("UPDATE_MOUSEOVER_UNIT", NS.PlayerMouseoverEvent)
-	weizPVP:RegisterEvent("UNIT_HEALTH", NS.UnitHealthEvent)
-	weizPVP:RegisterEvent("UNIT_TARGET", NS.UnitTargetEvent)
-	weizPVP:RegisterEvent("UNIT_FLAGS", NS.UnitFlagsChanged)
+	NS.weizPVP_Events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+	NS.weizPVP_Events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+	NS.weizPVP_Events:RegisterEvent("PLAYER_TARGET_CHANGED")
+	NS.weizPVP_Events:RegisterEvent("PLAYER_TARGET_DIED")
+	NS.weizPVP_Events:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+	NS.weizPVP_Events:RegisterEvent("UNIT_FLAGS")
+	NS.weizPVP_Events:RegisterEvent("UNIT_HEALTH")
+	NS.weizPVP_Events:RegisterEvent("UNIT_TARGET")
 	-- ZONE CHANGED
 	weizPVP:RegisterEvent("PLAYER_ENTERING_BATTLEGROUND", NS.PlayerEnteringBattlegroundEvent)
 	weizPVP:RegisterEvent("PLAYER_ENTERING_WORLD", NS.PlayerEnteringWorldEvent)
@@ -48,12 +49,14 @@ function NS.DisableEvents()
 	-- ADDON
 	weizPVP:UnregisterEvent("ADDON_LOADED")
 	-- DATA COLLECTION
-	weizPVP:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
-	weizPVP:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
-	weizPVP:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
-	weizPVP:UnregisterEvent("UNIT_HEALTH")
-	weizPVP:UnregisterEvent("UNIT_TARGET")
-	weizPVP:UnregisterEvent("UNIT_FLAGS")
+	NS.weizPVP_Events:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+	NS.weizPVP_Events:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
+	NS.weizPVP_Events:UnregisterEvent("PLAYER_TARGET_CHANGED")
+	NS.weizPVP_Events:UnregisterEvent("PLAYER_TARGET_DIED")
+	NS.weizPVP_Events:UnregisterEvent("UPDATE_MOUSEOVER_UNIT")
+	NS.weizPVP_Events:UnregisterEvent("UNIT_FLAGS")
+	NS.weizPVP_Events:UnregisterEvent("UNIT_HEALTH")
+	NS.weizPVP_Events:UnregisterEvent("UNIT_TARGET")
 	-- COMBAT/PVP
 	weizPVP:UnregisterEvent("PLAYER_REGEN_DISABLED")
 	weizPVP:UnregisterEvent("PLAYER_REGEN_ENABLED")
@@ -81,11 +84,11 @@ function NS.UpdateDisplayData()
 end
 
 --> ⚡ UI_INFO_MESSAGE -------------------------------------
-function NS.UiInfoMessage(_, msgType, _)
-	if msgType == 1035 or msgType == 998 then
-		NS.WarModeChanged(false)
-	elseif msgType == 1034 then
+function NS.UiInfoMessage(_, errType, message)
+	if message == ERR_PVP_WARMODE_TOGGLE_ON then
 		NS.WarModeChanged(true)
+	elseif message == ERR_PVP_WARMODE_TOGGLE_OFF then
+		NS.WarModeChanged(false)
 	end
 end
 
@@ -99,68 +102,6 @@ function NS.WarModeChanged(input)
 			NS.GetPVPZone()
 		end
 	)
-end
-
---|> UNITS
--------------------------------------------------------------------------------
-
---> ⚡ MOUSEOVER ------------------------------------------
-function NS.PlayerMouseoverEvent()
-	NS.GetUnitData("mouseover")
-end
-
---> ⚡ TARGET_CHANGED --------------------------------------
-function NS.PlayerTargetEvent()
-	NS.GetUnitData("target")
-	NS.Crosshair.NewTarget()
-	NS.CoreUI.ChangeTargetIcon()
-end
-
---> ⚡ NAMEPLATE_ADDED -------------------------------------
-function NS.NameplateAdded(_, unit)
-	if NS.IsUnitValidForTracking(unit) then
-		NS.GetUnitData(unit)
-		local PID = NS.GetPlayerIDByUnit(unit)
-		if PID then
-			NS.CurrentNameplates[PID] = true
-		end
-	end
-end
-
---> ⚡ NAMEPLATE_REMOVED -----------------------------------
-function NS.NameplateRemoved(_, unit)
-	if NS.IsUnitValidForTracking(unit) then
-		local PID = NS.GetPlayerIDByUnit(unit)
-		if PID then
-			NS.CurrentNameplates[PID] = nil
-		end
-	end
-end
-
---> ⚡ UNIT TARGET -----------------------------------------
-function NS.UnitTargetEvent(_, unit)
-	NS.GetUnitData(unit)
-end
-
---> ⚡ UNIT FLAGS CHANGED ----------------------------------
-function NS.UnitFlagsChanged(_, unit)
-	if not NS.IsUnitValidForTracking(unit) then
-		local PID = NS.GetPlayerIDByUnit(unit)
-		if NS.PlayerActiveCache[PID] then
-			wipe(NS.PlayerActiveCache[PID])
-			NS.PlayerActiveCache[PID] = nil
-			if NS.CurrentList[PID] then
-				wipe(NS.CurrentList[PID])
-				wipe(NS.NearbyList[PID])
-			end
-			NS.CurrentList[PID] = nil
-			NS.NearbyList[PID] = nil
-			NS.SortNearbyList()
-			if NS.PlayersOnBars[PID] then
-				NS.RefreshCurrentList()
-			end
-		end
-	end
 end
 
 --|> ADDON

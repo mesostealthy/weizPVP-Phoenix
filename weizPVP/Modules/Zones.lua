@@ -22,11 +22,23 @@ NS.Zone.InInstance = nil
 NS.ZoneKnown = nil
 NS.LoadingScreenActive = true
 
---> Is Enabled Area? <-----------------------------------------------
-local function IsEnabledArea()
-	-- Warmode check
-	NS.Player.WarMode = C_PvP.IsWarModeDesired()
+--> War Mode Check
+function NS.WarModeCheck()
+	-- War Mode Check
+	if (not NS.Player.WarMode) and NS.Options.Addon.DisabledWhenWarmodeOff then
+		-- check if sanctuaries are allowed while WM is disabled
+		if (not NS.Options.Addon.DisabledWhenWarmodeOffSanctuaries) and NS.Zone.pvpType == "sanctuary" then
+			return true
+		else
+			return false
+		end
+	else
+		return true
+	end
+end
 
+--> Is Enabled Area? <-----------------------------------------------
+function NS.IsEnabledArea()
 	-- Sanctuary check
 	if NS.Options.Addon.DisabledInSanctuary and NS.Zone.pvpType == "sanctuary" then
 		return false
@@ -110,7 +122,8 @@ local function GetZoneType()
 	end
 
 	-- Are we in a valid instance/zone?
-	if IsEnabledArea() then
+	NS.Player.WarMode = C_PvP.IsWarModeDesired()
+	if NS.IsEnabledArea() then
 		weizPVP:OnEnable()
 	else
 		weizPVP:OnDisable()
@@ -140,7 +153,6 @@ end
 --> ⚡ Entering Battleground Instance ----------------------
 function NS.PlayerEnteringBattlegroundEvent()
 	NS.GetPVPZone()
-	wipe(NS.CurrentNameplates)
 end
 
 --> ⚡ ZONE_CHANGED_NEW_AREA -------------------------------
@@ -165,7 +177,6 @@ function NS.PlayerEnteringWorldEvent()
 
 	-- ENABLE
 	NS.EnableLDB()
-	wipe(NS.CurrentNameplates)
 	NS.Crosshair.NewTarget() -- check for target
 	if NS.databaseReset then -- database update check for pre-1.9.0
 		C_Timer_After(

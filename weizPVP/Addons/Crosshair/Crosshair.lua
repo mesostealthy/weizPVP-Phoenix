@@ -174,14 +174,27 @@ end
 
 --> Check KOS <------------------------------------------------------
 local function CheckKOS()
-	local fullName = NS.GetFullNameOfUnit("target")
-	if not issecretvalue(fullName) and NS.KosList[fullName] then
+	--: find player name (if possible)
+	local player = nil
+	local PID = NS.GetPIDForUnit("target")
+	if NS.PlayersOnBars[PID] then
+		--: proper NAME?
+		if NS.PlayerActiveCache[PID].NAME then
+			--: set player
+			player = NS.PlayerActiveCache[PID].NAME
+		end
+	end
+
+	--: found player?
+	if player and not issecretvalue(player) and NS.KosList[player] then
+		--: KOS player
 		weizPVP_CrosshairFrame.FourArrowsKOS.FadeIn:Play()
 		weizPVP_CrosshairFrame.FourArrowsKOS.Rotate:Play()
 		weizPVP_CrosshairFrame.FourArrows:Hide()
 		weizPVP_CrosshairFrame.FourArrowsKOS:Show()
 		return true
 	else
+		--: normal player
 		weizPVP_CrosshairFrame.FourArrows.FadeIn:Play()
 		weizPVP_CrosshairFrame.FourArrows.Rotate:Play()
 		weizPVP_CrosshairFrame.FourArrows:Show()
@@ -192,24 +205,29 @@ end
 
 --> Setup Crosshair On Nameplate <-----------------------------------
 local function SetupCrosshairOnNameplate(nameplate)
+	--: invalid?
 	if not nameplate then
 		return
 	end
+
 	--: Set on same level as nameplate
 	weizPVP_CrosshairFrame.Core:SetWidth(nameplate:GetWidth() + 14)
 	weizPVP_CrosshairFrame.Core:SetHeight(weizPVP_CrosshairFrame.Core:GetWidth())
 	weizPVP_CrosshairFrame:ClearAllPoints()
 	weizPVP_CrosshairFrame:SetParent(nameplate)
 	weizPVP_CrosshairFrame:SetPoint("CENTER")
+
 	--: Alpha
 	if not weizPVP_CrosshairFrame:IsShown() then
 		NS.Crosshair.SetAlpha()
 		ShowCrosshair()
 	end
+
 	--: Animations
 	weizPVP_CrosshairFrame:StopAnimating()
 	weizPVP_CrosshairFrame.TargetFX:Show()
 	weizPVP_CrosshairFrame.TargetFX.Splash:Play()
+
 	--: KOS Check
 	CheckKOS()
 	SetCrosshairColors()
@@ -292,6 +310,11 @@ end
 
 --|> CROSSHAIR ALLOWED?
 local function IsCrosshairAllowed(unit)
+	-- : not loaded yet?
+	if not NS.Options.Crosshair then
+		return false
+	end
+
 	-- : inside dungeon?
 	if NS.Zone.instance == "party" then
 		-- : not enabled?
@@ -403,6 +426,7 @@ function NS.Crosshair.Enable()
 	ConfigureRange()
 	eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 	eventFrame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+	eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 	weizPVP_CrosshairFrame.NetOMatic:Show()
 	NS.ResizeFrameToUiScale(weizPVP_CrosshairFrame)
 	NS.Crosshair.Enabled = true
@@ -416,6 +440,7 @@ function NS.Crosshair.Disable()
 	NS.Crosshair.active = nil
 	eventFrame:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
 	eventFrame:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
+	eventFrame:UnregisterEvent("PLAYER_TARGET_CHANGED")
 	if RangeCheckTicker then
 		RangeCheckTicker:Cancel()
 		RangeCheckTicker = nil
@@ -459,4 +484,10 @@ function eventFrame.NAME_PLATE_UNIT_REMOVED(_, _, unit)
 	if IsCrosshairAllowed(unit) then
 		NameplateRemoved(unit)
 	end
+end
+
+--> PLAYER_TARGET_CHANGED <------------------------------------------
+function eventFrame.PLAYER_TARGET_CHANGED(_)
+	NS.Crosshair.NewTarget()
+	NS.CoreUI.ChangeTargetIcon()
 end

@@ -4,77 +4,69 @@
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
 
---: Libraries :------------------------
+-- : Libraries :------------------------
 local RAC = LibStub("LibRaces-1.0")
+local SM = LibStub:GetLibrary("LibSharedMedia-3.0")
 
---: ⬆️ Upvalues :--
-local select = select
-local GetTime = GetTime
-local issecretvalue = issecretvalue
+-- : ⬆️ Upvalues :--
 local GetScoreInfo = C_PvP.GetScoreInfo
 local GetZonePVPInfo = C_PvP.GetZonePVPInfo
 local GetNamePlates = C_NamePlate.GetNamePlates
+local GetBestMapForUnit = C_Map.GetBestMapForUnit
 local GetActiveMatchState = C_PvP.GetActiveMatchState
 local GetNamePlateForUnit = C_NamePlate.GetNamePlateForUnit
-local UnitCanAttack, UnitIsEnemy = UnitCanAttack, UnitIsEnemy
+local GetScoreInfoByPlayerGuid = C_PvP.GetScoreInfoByPlayerGuid
+local InCombatLockdown, IsInRaid = InCombatLockdown, IsInRaid
 local UnitClassBase, UnitRace, UnitSex = UnitClassBase, UnitRace, UnitSex
-local UnitIsMercenary, UnitTokenFromGUID = UnitIsMercenary, UnitTokenFromGUID
-local InCombatLockdown, IsInRaid, UnitIsSameServer = InCombatLockdown, IsInRaid, UnitIsSameServer
+local UnitIsDeadOrGhost, UnitHealthPercent = UnitIsDeadOrGhost, UnitHealthPercent
 local UnitExists, UnitIsPlayer, UnitGUID, UnitName = UnitExists, UnitIsPlayer, UnitGUID, UnitName
+local UnitIsPossessed, UnitPowerMax, UnitPowerType = UnitIsPossessed, UnitPowerMax, UnitPowerType
+local RequestBattlefieldScoreData, UnitLeadsAnyGroup = RequestBattlefieldScoreData, UnitLeadsAnyGroup
+local UnitIsMercenary, UnitIsUnit, UnitTokenFromGUID = UnitIsMercenary, UnitIsUnit, UnitTokenFromGUID
 local UnitFactionGroup, GetGuildInfo, UnitHonorLevel = UnitFactionGroup, GetGuildInfo, UnitHonorLevel
-local GetNumBattlefieldScores, GetRaidRosterInfo = GetNumBattlefieldScores, GetRaidRosterInfo
+local UnitCanAttack, UnitIsEnemy, UnitRealmRelationship = UnitCanAttack, UnitIsEnemy, UnitRealmRelationship
 local GetInspectSpecialization, GetSpecializationInfoByID = GetInspectSpecialization, GetSpecializationInfoByID
-local GetPlayerInfoByGUID, NotifyInspect = GetPlayerInfoByGUID, NotifyInspect
-local RequestBattlefieldScoreData = RequestBattlefieldScoreData
+local GetPlayerInfoByGUID, IsInInstance, NotifyInspect = GetPlayerInfoByGUID, IsInInstance, NotifyInspect
+local GetNumBattlefieldScores, GetRaidRosterInfo = GetNumBattlefieldScores, GetRaidRosterInfo
+local gsub, select, strmatch, strsplit, wipe = gsub, select, strmatch, strsplit, wipe
+local issecretvalue = issecretvalue
+local tinsert = table.insert
+local mfloor = math.floor
 
--- : load libraries
-local SM = LibStub:GetLibrary("LibSharedMedia-3.0")
-
--- : customizations
-NS.ButtonHeight = 22
-NS.ButtonWidth = 150
-NS.NumPerColumn = 10
+-- : local variables
+local weizFrame = nil
 
 -- : globals
 NS.NPC = {}
-NS.PSC = {}
+NS.mapID = 0
+NS.PID_Cache = {}
+NS.MatchState = 0
 NS.mainAssist = nil
+NS.EnemyPlayerCache = {}
 NS.NotifyInspectCache = {}
+NS.NamePlateLastTarget = nil
 
---|> find player from PSC
-function NS.FindPlayerFromPSC(C, RC, HL)
-	-- : process all
-	for GUID, data in pairs(NS.PSC) do
-		-- : valid class match?
-		local matched = 0
-		if data.C and data.C == C then
-			-- : matched!
-			matched = matched + 1
-		end
-
-		-- : valid race match?
-		if data.RC and data.RC == RC then
-			-- : matched!
-			matched = matched + 1
-		end
-
-		-- : valid honor level match?
-		if data.HL and data.HL == HL then
-			-- : matched!
-			matched = matched + 1
-		end
-
-		-- : enough matches?
-		if matched >= 3 then
-			-- : return GUID
-			return GUID
-		end
+--|> get player details from battleground enemies
+function NS.BattleGroundEnemies_GetPlayerDetails(unitToken)
+	-- : not installed?
+	if not (BattleGroundEnemies and BattleGroundEnemies.GetPlayerbuttonByUnitID) then
+		-- : failed
+		return nil
 	end
+
+	-- : get player button by unit
+	local playerButton = BattleGroundEnemies:GetPlayerbuttonByUnitID(unitToken, "Enemies")
+	if playerButton and playerButton.PlayerDetails then
+		-- : return player details
+		return playerDetails
+	end
+
+	-- failed
 	return nil
 end
 
 --|> calculate PID
-function NS.CalculatePID(classID, raceID, factionID, rankID, sexID, honorLevel)
+function NS.CalculatePID(classID, raceID, factionID, sexID, honorLevel, rankID)
 	-- : missing class or honor level?
 	if not classID or not honorLevel then
 		-- : failed
@@ -93,16 +85,16 @@ function NS.CalculatePID(classID, raceID, factionID, rankID, sexID, honorLevel)
 		raceID = 0
 	end
 
-	-- : missing rank?
-	if not rankID then
-		-- : force 0 for now
-		rankID = 0
-	end
-
 	-- : missing sex?
 	if not sexID then
 		-- : force 0 for now
 		sexID = 0
+	end
+
+	-- : missing rank?
+	if not rankID then
+		-- : force 0 for now
+		rankID = 0
 	end
 
 	-- : calulate PID
@@ -111,496 +103,590 @@ function NS.CalculatePID(classID, raceID, factionID, rankID, sexID, honorLevel)
 		raceID * 1048576 +		-- 0x00100000
 		factionID * 262144 +		-- 0x00040000
 		sexID * 65536 +			-- 0x00010000
-		rankID * 4096 +			-- 0x00001000
 		honorLevel
 	return PID
 end
 
---|>  is valid unit token
-function NS.IsValidUnitToken(unit)
+--|> get data for unit
+function NS.GetDataForUnit(unitToken)
+	-- : found nameplate?
+	if NS.NPC[unitToken] then
+		-- : found PID / cache?
+		local PID = NS.NPC[unitToken]
+		if PID and NS.PID_Cache[PID] then
+			-- : return data from cache
+			return NS.PID_Cache[PID]
+		end
+	end
+
+	-- : calculate PID
+	local data = {}
+	data.sexID = UnitSex(unitToken)
+	data.level = UnitLevel(unitToken)
+	data.honorLevel = UnitHonorLevel(unitToken)
+	data.classToken, data.classID = UnitClassBase(unitToken)
+	data.raceName, data.raceToken, data.raceID = UnitRace(unitToken)
+	data.factionID = (UnitFactionGroup(unitToken) == FACTION_ALLIANCE) and 1 or 0
+	data.guildName, data.rankName, data.rankID, data.guildRealm = GetGuildInfo(unitToken)
+	data.PID = NS.CalculatePID(data.classID, data.raceID, data.factionID, data.sexID, data.honorLevel, data.rankID)
+	if not data.PID then
+		-- : failed
+		print("ERROR: Invalid Class or Honor Level?", data.classID, data.honorLevel)
+		return nil
+	end
+
+	-- : return data
+	return data
+end
+
+--|> is valid unit token
+function NS.IsValidUnitToken(unitToken)
 	-- : exists?
-	if not UnitExists(unit) then
+	if not UnitExists(unitToken) then
 		-- : failed
 		return nil
 	end
 
 	-- : not player?
-	if not UnitIsPlayer(unit) then
+	if not UnitIsPlayer(unitToken) then
 		-- : failed
 		return nil
 	end
 
-	-- : not an enemy player?
-	if not UnitCanAttack("player", unit) and not UnitIsEnemy("player", unit) then
+	-- : not an enemy to player?
+	if not (UnitCanAttack("player", unitToken) or UnitIsEnemy("player", unitToken)) then
 		-- : failed
 		return nil
+	end
+
+	-- : mind controlled?
+	if UnitIsPossessed(unitToken) then
+		-- : same faction as player?
+		if UnitFactionGroup(unitToken) == NS.Player.Faction then
+			-- : failed
+			return nil
+		end
 	end
 
 	-- : success
 	return true
 end
 
---|> get player id by unit
-function NS.GetPlayerIDByUnit(unit)
-	-- : valid unit?
-	if not NS.IsValidUnitToken(unit) then
+--|> get pid by unit
+function NS.GetPIDForUnit(unitToken)
+	-- : valid unitToken?
+	if not NS.IsValidUnitToken(unitToken) then
 		-- : failed
 		return nil
 	end
 
-	-- : check guid
-	local PlayerID = nil
-	local guid = UnitGUID(unit)
-	if not guid then
-		-- : failed
-		return nil
-	elseif not issecretvalue(guid) then
-		-- : set PlayerID
-		PlayerID = "G:" .. guid
-	else
-		-- : check name
-		local name, realm = UnitName(unit)
-		if not name then
-			-- : failed
-			return nil
-		elseif not issecretvalue(name) then
-			-- : same server as player?
-			if UnitIsSameServer(unit) then
-				-- : set PlayerID
-				PlayerID = "N:" .. name .. "-" .. NS.PlayerRealm
-			else
-				-- : set PlayerID
-				PlayerID = "N:" .. name .. "-" .. realm
+	-- : target?
+	if (unitToken == "target") or (unitToken == "mouseover") then
+		-- : search units
+		for unit, PID in pairs(NS.NPC) do
+			-- : unit matches?
+			if UnitIsUnit(unitToken, unit) then
+				-- : update unit
+				unitToken = unit
+				break
 			end
 		end
 	end
 
-	-- : not found yet?
-	if not PlayerID then
-		-- : calculate PID
-		local sexID = UnitSex(unit)
-		local level = UnitLevel(unit)
-		local _, raceName, raceID = UnitRace(unit)
-		local className, classID = UnitClassBase(unit)
-		local honorLevel = UnitHonorLevel(unit)
-		local factionID = UnitFactionGroup(unit) == "Alliance" and 1 or 0
-		local guildName, rankName, rankID, guildRealm = GetGuildInfo(unit)
-		local PID = NS.CalculatePID(classID, raceID, factionID, rankID, sexID, honorLevel)
-		PlayerID = "P:" .. PID
+	-- : found unit?
+	if NS.NPC[unitToken] then
+		-- : return PID
+		return NS.NPC[unitToken]
 	end
 
-	-- : return PlayerID
-	return PlayerID
+	-- : failed
+	return nil
 end
 
---|> get unit player data
-function NS.GetUnitPlayerData(unit)
-	-- : valid unit?
-	if not NS.IsValidUnitToken(unit) then
-		-- : failed
-		return nil
-	end
-
-	-- : check guid
-	local PlayerID = nil
-	local guid = UnitGUID(unit)
-	if not guid then
-		-- : failed
-		return nil
-	elseif not issecretvalue(guid) then
-		-- : set PlayerID
-		PlayerID = "G:" .. guid
-	else
-		-- : check name
-		local name, realm = UnitName(unit)
-		if not name then
-			-- : failed
-			return nil
-		elseif not issecretvalue(name) then
-			-- : same server as player?
-			if UnitIsSameServer(unit) then
-				-- : set PlayerID
-				PlayerID = "N:" .. name .. "-" .. NS.PlayerRealm
-			else
-				-- : set PlayerID
-				PlayerID = "N:" .. name .. "-" .. realm
+--|> get mouseover specialziation
+function NS.GetMouseoverSpecialization(unitToken)
+	-- : has mouse over?
+	local specialization = nil
+	if UnitExists(unitToken) then
+		-- has guild?
+		local guildName, rankName, rankID, guildRealm = GetGuildInfo(unitToken)
+		if guildName then
+			-- save specialization
+			specialization = GameTooltipTextLeft4:GetText()
+		else
+			-- check numlines
+			local numLines = GameTooltip:NumLines()
+			if numLines == 4 or numLines == 5 then
+				-- save specialization
+				specialization = GameTooltipTextLeft3:GetText()
+			elseif numLines == 6 then
+				-- save specialization
+				specialization = GameTooltipTextLeft4:GetText()
 			end
 		end
 	end
 
-	-- : not cached?
-	if not PlayerID or not NS.NPC[PlayerID] then
-		-- : calculate PID
-		local sexID = UnitSex(unit)
-		local level = UnitLevel(unit)
-		local _, raceName, raceID = UnitRace(unit)
-		local className, classID = UnitClassBase(unit)
-		local honorLevel = UnitHonorLevel(unit)
-		local factionID = UnitFactionGroup(unit) == "Alliance" and 1 or 0
-		local guildName, rankName, rankID, guildRealm = GetGuildInfo(unit)
-		local PID = NS.CalculatePID(classID, raceID, factionID, rankID, sexID, honorLevel)
-		if not PlayerID then
-			-- : set PlayerID
-			PlayerID = "P:" .. PID
-		end
+	-- return specialization
+	return specialization
+end
 
-		-- : unit is mercenary?
-		if UnitIsMercenary(unit) then
-			-- : swap factionID
-			if factionID == 1 then
-				factionID = 0
+--|> get role for unit
+function NS.GetRoleForUnit(unitToken, classToken)
+	-- : hunter?
+	local role = nil
+	if classToken == "HUNTER" then
+		-- : always damager
+		role = "DAMAGER"
+	-- : mage?
+	elseif classToken == "MAGE" then
+		-- : always damager
+		role = "DAMAGER"
+	-- : monk?
+	elseif classToken == "MONK" then
+		-- : get power type
+		local powerType = UnitPowerType(unitToken)
+		if powerType == 0 then
+			role = "HEALER"
+		else
+			-- : get power max
+			local powerMax = UnitPowerMax(unitToken, 12)
+			if powerMax == 4 then
+				role = "TANK"
 			else
-				factionID = 1
+				role = "DAMAGER"
 			end
 		end
+	-- : priest?
+	elseif classToken == "PRIEST" then
+		-- : get power type
+		local powerType = UnitPowerType(unitToken)
+		if powerType == 13 then
+			role = "DAMAGER"
+		else
+			role = "HEALER"
+		end
+	-- : rogue?
+	elseif classToken == "ROGUE" then
+		-- : always damager
+		role = "DAMAGER"
+	-- : shaman?
+	elseif classToken == "SHAMAN" then
+		-- : get power type
+		local powerType = UnitPowerType(unitToken)
+		if powerType == 0 then
+			role = "HEALER"
+		else
+			role = "DAMAGER"
+		end
+	-- : warlock?
+	elseif classToken == "WARLOCK" then
+		-- : always damager
+		role = "DAMAGER"
+	end
 
-		-- : still not found?
-		if not NS.NPC[PlayerID] then
-			-- : check name
-			local name, realm = UnitName(unit)
-			if not name then
-				-- : failed
-				return nil
-			end
+	-- : return role
+	return role
+end
 
-			-- : same server as player?
-			local fullName
-			if UnitIsSameServer(unit) then
-				-- : finalize
-				realm = nil
-				fullName = name .. "-" .. NS.PlayerRealm
-			-- : has realm?
-			elseif realm then
-				-- : finalize name
-				fullName = name .. "-" .. realm
-			end
+--|> refresh active player data
+function NS.RefreshActivePlayerData(unitToken)
+	-- : unit still exists?
+	if UnitExists(unitToken) then
+		-- : found PID / cache?
+		local PID = NS.NPC[unitToken]
+		if PID and NS.PID_Cache[PID] then
+			-- : update player cache
+			local data = NS.PID_Cache[PID]
+			NS.UpdatePlayerActiveCache(PID, data.name, data.realm, nil)
+			NS.ValidatePlayerActiveCache(unitToken, PID)
 
-			-- : create nameplate cache
-			local player = name
-			NS.NPC[PlayerID] = {}
-			NS.NPC[PlayerID].PID = PlayerID
-			NS.NPC[PlayerID].guid = guid
-			NS.NPC[PlayerID].name = name
-			NS.NPC[PlayerID].realm = realm
-			NS.NPC[PlayerID].player = player
-			NS.NPC[PlayerID].fullName = fullName
-			NS.NPC[PlayerID].C = className
-			NS.NPC[PlayerID].CID = classID
-			NS.NPC[PlayerID].F = factionID
-			NS.NPC[PlayerID].G = guildName
-			NS.NPC[PlayerID].HL = honorLevel
-			NS.NPC[PlayerID].L = level
-			NS.NPC[PlayerID].R = rankID
-			NS.NPC[PlayerID].RC = raceName
-			NS.NPC[PlayerID].RID = raceID
-			NS.NPC[PlayerID].RL = NS.ClassRoleAssign(className)
-			NS.NPC[PlayerID].S = sexID
-
-			-- : no GUID?
-			if not NS.NPC[PlayerID].GUID then
-				-- : find player from PSC
-				local GUID = NS.FindPlayerFromPSC(className, raceName, honorLevel)
-				if GUID then
-					-- : save data
-					NS.NPC[PlayerID].realGUID = NS.PSC[GUID].realGUID
-					NS.NPC[PlayerID].realName = NS.PSC[GUID].realName
-					NS.NPC[PlayerID].macrotext = NS.PSC[GUID].macrotext
-
-					-- : role needed?
-					if not NS.NPC[PlayerID].RL and NS.PSC[GUID].RL then
-						-- : save role
-						NS.NPC[PlayerID].RL = NS.PSC[GUID].RL
-					end
+			-- : player actively cached?
+			if NS.PlayerActiveCache[PID] then
+				-- : update health?
+				NS.PlayerActiveCache[PID].unitToken = unitToken
+				if NS.Options.Bars.UpdateHealth then
+					-- : refresh dead / health
+					NS.PlayerActiveCache[PID].Dead = UnitIsDeadOrGhost(unitToken)
+					NS.PlayerActiveCache[PID].Health = UnitHealthPercent(unitToken)
+					NS.RefreshBarByPID(PID)
 				end
 			end
+
+			-- : return data
+			return data
 		end
 	end
 
-	-- : not secret full name?
-	local player = NS.NPC[PlayerID].name
-	if not issecretvalue(player) then
-		-- : save / update data
-		NS.PlayerDB[player] = NS.PlayerDB[player] or {}
-		NS.PlayerDB[player].C = NS.NPC[PlayerID].C
-		NS.PlayerDB[player].CID = NS.NPC[PlayerID].CID
-		NS.PlayerDB[player].F = NS.NPC[PlayerID].F
-		NS.PlayerDB[player].G = NS.NPC[PlayerID].G
-		NS.PlayerDB[player].HL = NS.NPC[PlayerID].HL
-		NS.PlayerDB[player].L = NS.NPC[PlayerID].L
-		NS.PlayerDB[player].R = NS.NPC[PlayerID].R
-		NS.PlayerDB[player].RC = NS.NPC[PlayerID].RC
-		NS.PlayerDB[player].RID = NS.NPC[PlayerID].RID
-		NS.PlayerDB[player].S = NS.NPC[PlayerID].S
-		NS.PlayerDB[player].T = GetTime()
+	-- : failed
+	return nil
+end
 
-		-- : non secret guid?
-		if not issecretvalue(guid) then
-			-- : save guid
-			NS.PlayerDB[player].guid = guid
+--|> update specialization
+function NS.UpdateNamePlateSpecialization(namePlate, unitToken)
+	-- : specialization text no tenabled?
+	if not NS.Options.BattleGrounds.SpecText then
+		-- : finished
+		return
+	end
+
+	-- : sanity check
+	if namePlate and unitToken then
+		-- : currently targeted?
+		if UnitIsUnit("target", unitToken) then
+			-- : has specialization?
+			local PID = NS.NPC[unitToken]
+			if PID and NS.PID_Cache[PID].specialization then
+				-- : set text
+				weizFrame.Text:SetText(NS.PID_Cache[PID].specialization)
+				weizFrame:SetPoint("CENTER", namePlate, "CENTER", 0, -15)
+				weizFrame:Show()
+				return
+			end
 		end
+	end
 
-		-- : has database role?
-		if NS.PlayerDB[player].RL then
-			-- : not estimated
-			NS.NPC[PlayerID].RL = NS.PlayerDB[player].RL
-			NS.PlayerDB[player].E = nil
+	-- : hide
+	weizFrame.Text:SetText("")
+	weizFrame:ClearAllPoints()
+	weizFrame:Hide()
+end
 
-			-- : notify pending?
-			if NS.NotifyInspectCache[PlayerID] then
-				-- : delete
-				NS.NotifyInspectCache[PlayerID] = nil
+--|> refresh unit data
+function NS.RefreshUnitData(unitToken)
+	-- : get data for unit
+	local data = NS.GetDataForUnit(unitToken)
+	if data and data.PID then
+		-- : save PID
+		local PID = data.PID
+		NS.NPC[unitToken] = PID
+
+		-- : already cached?
+		if NS.PID_Cache[PID] then
+			-- : update pid cache
+			local currentTime = time()
+			NS.PID_Cache[PID].HL = honorLevel
+			NS.PID_Cache[PID].L = level
+			NS.PID_Cache[PID].T = currentTime
+			NS.PID_Cache[PID].isLeader = UnitLeadsAnyGroup(unitToken)
+
+			-- : has NAME?
+			if NS.PID_Cache[PID].NAME then
+				-- : update database
+				local NAME = NS.PID_Cache[PID].NAME
+				NS.PlayerDB[NAME].HL = honorLevel
+				NS.PlayerDB[NAME].L = level
+				NS.PlayerDB[NAME].T = currentTime
 			end
 		else
-			-- : can not guess from damage only roles?
-			NS.PlayerDB[player].RL = NS.ClassRoleAssign(NS.PlayerDB[player].C)
-			if not NS.PlayerDB[player].RL then
-				-- : not already notified?
-				if not NS.NotifyInspectCache[PlayerID] then
-					-- : not in combat?
-					if not InCombatLockdown() then
-						-- : not mouseover
-						if unit ~= "mouseover" then
-							-- : can inspect?
-							if CanInspect(unit) then
-								-- : estimated / inspect GUID
-								NS.PlayerDB[player].E = true
-								NotifyInspect(unit)
-								NS.NotifyInspectCache[PlayerID] = player
+			-- : initialize
+			NS.PID_Cache[PID] = {}
+
+			-- : save potentially secret stuff
+			local guid = UnitGUID(unitToken)
+			local name, realm = UnitName(unitToken)
+			NS.PID_Cache[PID].guid = guid
+			NS.PID_Cache[PID].name = name
+			NS.PID_Cache[PID].realm = realm
+
+			-- : save non-secret stuff
+			NS.PID_Cache[PID].lastNP = unitToken
+			NS.PID_Cache[PID].C = data.classToken
+			NS.PID_Cache[PID].CID = data.classID
+			NS.PID_Cache[PID].FID = data.factionID
+			NS.PID_Cache[PID].G = data.guildName
+			NS.PID_Cache[PID].GR = data.rankName
+			NS.PID_Cache[PID].GRID = data.rankID
+			NS.PID_Cache[PID].GRN = data.guildRealm
+			NS.PID_Cache[PID].HL = data.honorLevel
+			NS.PID_Cache[PID].L = data.level
+			NS.PID_Cache[PID].RID = data.raceID
+			NS.PID_Cache[PID].S = data.sexID
+			NS.PID_Cache[PID].RL = NS.GetRoleForUnit(unitToken, data.classToken)
+			NS.PID_Cache[PID].isLeader = UnitLeadsAnyGroup(unitToken)
+
+			-- : check match state
+			if NS.MatchState == Enum.PvPMatchState.Engaged then
+				-- : search PSC
+				for k,v in pairs(NS.PSC) do
+					-- : matches stuff?
+					if v.CID == data.classID and v.RT == data.raceToken and v.S == data.sexID and v.HL then
+						-- : calculate range
+						local range = 1
+						if v.HL > 50 then
+							range = 10 + mfloor(v.HL / 50)
+						elseif v.HL > 5 then
+							range = mfloor(v.HL / 5)
+						end
+
+						-- : honor level within range?
+						if (data.honorLevel >= v.HL) and ((data.honorLevel - v.HL) < range) then
+							-- : found player by guid?
+							if GetScoreInfoByPlayerGuid(v.GUID) then
+								-- : save GUID / NAME
+								NS.PID_Cache[PID].GUID = v.GUID
+								NS.PID_Cache[PID].NAME = v.NAME
+
+								-- : no role yet?
+								if not NS.PID_Cache[PID].RL then
+									-- : try using role from database
+									NS.PID_Cache[PID].RL = v.RL
+								end
+								break
+							end
+						end
+					end
+				end
+			else
+				-- : non secret?
+				if not issecretvalue(guid) then
+					-- : save GUID
+					NS.PID_Cache[PID].GUID = guid
+
+					-- no realm?
+					if not realm or (realm == "") or (UnitRealmRelationship(unitToken) == LE_REALM_RELATION_SAME) then
+						-- same realm
+						realm = NS.PlayerRealm
+					end
+
+					-- : save NAME
+					NS.PID_Cache[PID].NAME = name .. "-" .. realm
+				end
+			end
+
+			-- : not found yet?
+			if not NS.PID_Cache[PID].GUID then
+				-- : search player database
+				for player,v in pairs(NS.PlayerDB) do
+					-- : matches stuff?
+					if v.CID == data.classID and v.RID == data.raceID and v.S == data.sexID and v.HL then
+						-- : calculate range
+						local range = 1
+						if v.HL > 50 then
+							range = 10 + mfloor(v.HL / 50)
+						elseif v.HL > 5 then
+							range = mfloor(v.HL / 5)
+						end
+
+						-- : honor level within range?
+						if (data.honorLevel >= v.HL) and ((data.honorLevel - v.HL) < range) then
+							-- : found player by guid?
+							if GetScoreInfoByPlayerGuid(v.GUID) then
+								-- : save GUID / NAME
+								NS.PID_Cache[PID].GUID = v.GUID
+								NS.PID_Cache[PID].NAME = player
+
+								-- : no role yet?
+								if not NS.PID_Cache[PID].RL then
+									-- : try using role from database
+									NS.PID_Cache[PID].RL = v.RL
+								end
+								break
 							end
 						end
 					end
 				end
 			end
-		end
-	end
 
-	-- : final try for role
-	if not NS.NPC[PlayerID].RL and NS.NPC[PlayerID].C then
-		-- : check damage only roles
-		NS.NPC[PlayerID].RL = NS.ClassRoleAssign(NS.NPC[PlayerID].C)
-	end
+			-- : finally found?
+			if NS.PID_Cache[PID].GUID then
+				-- : save macrotext
+				local GUID = NS.PID_Cache[PID].GUID
+				local player = NS.PID_Cache[PID].NAME
+				NS.PID_Cache[PID].macrotext = "/target " .. gsub(player, "-(.*)", "")
 
-	-- : main assist?
-	if NS.mainAssist then
-		-- : target main assist's target
-		NS.NPC[PlayerID].macrotext = "/assist [nodead] " .. NS.mainAssist
-	elseif NS.NPC[PlayerID].realName and not issecretvalue(NS.NPC[PlayerID].realName) then
-		-- : target real name
-		NS.NPC[PlayerID].macrotext = "/target " .. NS.NPC[PlayerID].realName
-	end
+				-- : new player found?
+				if not NS.PlayerDB[player] then
+					-- : initialize
+					NS.PlayerDB[player] = {}
+				end
 
-	-- : return data
-	NS.NPC[PlayerID].T = GetTime()
-	return NS.NPC[PlayerID]
-end
+				-- : add / update database
+				local currentTime = time()
+				NS.PlayerDB[player].GUID = NS.PID_Cache[PID].GUID
+				NS.PlayerDB[player].C = data.classToken
+				NS.PlayerDB[player].CID = data.classID
+				NS.PlayerDB[player].F = data.factionID
+				NS.PlayerDB[player].FID = data.factionID
+				NS.PlayerDB[player].G = data.guildName
+				NS.PlayerDB[player].GR = data.rankName
+				NS.PlayerDB[player].GRID = data.rankID
+				NS.PlayerDB[player].GRN = data.guildRealm
+				NS.PlayerDB[player].HL = data.honorLevel
+				NS.PlayerDB[player].L = data.level
+				NS.PlayerDB[player].RC = data.raceName
+				NS.PlayerDB[player].RID = data.raceID
+				NS.PlayerDB[player].RT = data.raceToken
+				NS.PlayerDB[player].S = data.sexID
+				NS.PlayerDB[player].T = currentTime
 
---|> setup bar macrotext
-function NS.SetupBarMacrotext(i, data)
-	-- : not in combat?
-	if (not InCombatLockdown()) then
-		-- : has main assist?
-		local macrotext = nil
-		if NS.mainAssist then
-			-- : target main assist's target
-			macrotext = "/assist [nodead] " .. NS.mainAssist
-		elseif data.player and not issecretvalue(data.player) then
-			-- : target player by name
-			macrotext = "/target " .. data.player
-		elseif data.realName and not issecretvalue(data.realName) then
-			-- : target player by real name
-			macrotext = "/target " .. data.realName
-		elseif data.macrotext and not issecretvalue(data.macrotext) then
-			-- : already has macrotext
-			macrotext = data.macrotext
-		end
+				-- : no role?
+				if not NS.PlayerDB[player].RL then
+					-- : try using role from pid cache
+					NS.PlayerDB[player].RL = NS.PID_Cache[PID].RL
+				end
 
-		-- : found macrotext?
-		if macrotext then
-			-- : not added / updated?
-			if not NS.weizPVP_Frame.Bars[i].macrotext or (NS.weizPVP_Frame.Bars[i].macrotext ~= macrotext) then
-				-- : set attributes
-				NS.weizPVP_Frame.Bars[i].macrotext = macrotext
-				NS.weizPVP_Frame.Bars[i]:SetAttribute("type1", "macro")
-				NS.weizPVP_Frame.Bars[i]:SetAttribute("macrotext1", macrotext)
-				NS.weizPVP_Frame.Bars[i]:EnableMouse(true)
+				-- : new player score cache?
+				if not NS.PSC[GUID] then
+					-- : initialize
+					NS.PSC[GUID] = {}
+				end
+
+				-- : update player score cache
+				NS.PSC[GUID].GUID = GUID
+				NS.PSC[GUID].NAME = player
+				NS.PSC[GUID].C = data.classToken
+				NS.PSC[GUID].CID = data.classID
+				NS.PSC[GUID].F = data.factionID
+				NS.PSC[GUID].FID = data.factionID
+				NS.PSC[GUID].HL = data.honorLevel
+				NS.PSC[GUID].RC = data.raceName
+				NS.PSC[GUID].RL = NS.PlayerDB[player].RL
+				NS.PSC[GUID].RT = data.raceToken
+				NS.PSC[GUID].S = data.sexID
+				NS.PSC[GUID].macrotext = NS.PID_Cache[PID].macrotext
+				NS.PSC[GUID].T = currentTime
 			end
-		else
-			-- : set attributes
-			NS.weizPVP_Frame.Bars[i].macrotext = nil
-			NS.weizPVP_Frame.Bars[i]:SetAttribute("type1", "macro")
-			NS.weizPVP_Frame.Bars[i]:SetAttribute("macrotext1", "")
-			NS.weizPVP_Frame.Bars[i]:EnableMouse(false)
 		end
+
+		-- : refresh active player data
+		NS.RefreshActivePlayerData(unitToken)
+
+		-- : return PID
+		return PID
+	end
+
+	-- : failed
+	return nil
+end
+
+--|> name plate unit added
+function NS.NamePlateUnitAdded(unitToken)
+	-- : valid unit?
+	if NS.IsValidUnitToken(unitToken) then
+		-- : unit refreshed?
+		NS.RefreshUnitData(unitToken)
 	end
 end
 
---|> refresh frame list
-function NS.RefreshFrameList()
-	-- : pre-process
-	local activeList = {}
-	for k,v in pairs(NS.NPC) do
-		-- : player on bars?
-		if NS.PlayersOnBars[k] then
-			-- : add active
-			table.insert(activeList, k)
-		end
+--|> name plate unit removed
+function NS.NamePlateUnitRemoved(unitToken)
+	-- : found unit?
+	if NS.NPC[unitToken] then
+		-- : delete unit
+		NS.NPC[unitToken] = nil
 	end
-
-	-- : hide previous bars
-	for k,v in pairs(NS.weizPVP_Frame.Bars) do
-		-- : hide
-		NS.weizPVP_Frame.Bars[k].hidden = true
-		NS.weizPVP_Frame.Bars[k]:Hide()
-	end
-
-	-- : process active list
-	local numPlayers = 0
-	local left, top = 0, 0
-	for i, PID in ipairs(activeList) do
-		-- : setup bar
-		NS.weizPVP_Frame.Bars[i] = NS.weizPVP_Frame.Bars[i] or CreateFrame("Button", nil, NS.weizPVP_Frame, "InsecureActionButtonTemplate")
-		NS.weizPVP_Frame.Bars[i]:RegisterForClicks("AnyDown", "AnyUp")
-		NS.weizPVP_Frame.Bars[i]:SetSize(NS.ButtonWidth, NS.ButtonHeight)
-		NS.weizPVP_Frame.Bars[i]:SetPoint("LEFT", left, top - NS.ButtonHeight - 2)
-		NS.weizPVP_Frame.Bars[i].bg = NS.weizPVP_Frame.Bars[i].bg or NS.weizPVP_Frame.Bars[i]:CreateTexture(nil, "BACKGROUND")
-		NS.weizPVP_Frame.Bars[i].bg:SetAllPoints()
-		NS.weizPVP_Frame.Bars[i].Name = NS.weizPVP_Frame.Bars[i].Name or NS.weizPVP_Frame.Bars[i]:CreateFontString(nil, "ARTWORK", nil, 2)
-		NS.weizPVP_Frame.Bars[i].Name:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 12, "OUTLINE")
-		NS.weizPVP_Frame.Bars[i].Name:SetJustifyH("LEFT")
-		NS.weizPVP_Frame.Bars[i].Name:SetPoint("LEFT", 2, 0)
-		NS.weizPVP_Frame.Bars[i].Name:SetSize(NS.ButtonWidth - 5, NS.ButtonHeight)
-		NS.weizPVP_Frame.Bars[i].Name:SetTextColor(1, 1, 1, 1)
-		NS.weizPVP_Frame.Bars[i].Name:SetWordWrap(false)
-
-		-- : update bar
-		local data = NS.NPC[PID]
-		local color = RAID_CLASS_COLORS[data.C] or { 0, 0, 0 }
-		NS.weizPVP_Frame.Bars[i].bg:SetColorTexture(color.r, color.g, color.b, 1)
-		NS.weizPVP_Frame.Bars[i].Name:SetText(data.fullName)
-		NS.weizPVP_Frame.Bars[i].PID = PID
-		NS.NPC[PID].BarID = i
-		NS.SetupBarMacrotext(i, data)
-
-		-- : show
-		NS.weizPVP_Frame.Bars[i].hidden = nil
-		NS.weizPVP_Frame.Bars[i]:Show()
-
-		-- : next
-		top = top - NS.ButtonHeight
-		numPlayers = numPlayers + 1
-	end
-
-	-- update count
-	NS.weizPVP_Frame.Header:SetText(numPlayers .. " Enemies")
 end
 
---|> refresh name plate list
-function NS.RefreshNamePlateList()
-	-- : process all
-	local timestamp = GetTime()
-	for PID, data in pairs(NS.NPC) do
-		-- : inactive?
-		if (timestamp - data.T) > NS.Options.Sorting.NearbyActiveTimeout then
-			-- : delete
-			NS.NPC[PID] = nil
-		else
-			-- : update player active cache
-			NS.UpdatePlayerActiveCache(data.PID, data.name, nil)
+--|> update name plate unit
+function NS.UpdateNamePlateUnit(unitToken)
+	-- : not valid unit?
+	if not NS.IsValidUnitToken(unitToken) then
+		-- : finished
+		return
+	end
+
+	-- : target?
+	if (unitToken == "target") or (unitToken == "mouseover") then
+		-- : search units
+		for unit, PID in pairs(NS.NPC) do
+			-- : unit is target?
+			if UnitIsUnit(unitToken, unit) then
+				-- : update unit
+				unitToken = unit
+				break
+			end
 		end
 	end
 
-	-- : update target
-	NS.UpdateNamePlateUnit("target")
+	-- : get name plate
+	local PID = nil
+	local namePlate = GetNamePlateForUnit(unitToken)
+	if namePlate and namePlate.UnitFrame then
+		-- : get unit
+		local processed = false
+		unitToken = namePlate:GetUnit()
+		if unitToken then
+			-- : refresh unit data
+			NS.RefreshUnitData(unitToken)
+
+			-- : found?
+			if NS.NPC[unitToken] then
+				-- : refresh active player data
+				NS.RefreshActivePlayerData(unitToken)
+			end
+		end
+	end
 end
 
 --|> refresh all nameplates
 function NS.RefreshAllNamePlates()
 	-- : get all nameplates
 	local nameplates = GetNamePlates()
-	for _, np in ipairs(nameplates) do
-		-- : has PID?
-		local PID = np.PID
-		if not PID then
-			-- : try by unit
-			PID = NS.GetPlayerIDByUnit(np.namePlateUnitToken)
-		end
-
-		-- : found?
-		if PID and NS.NPC[PID] then
-			-- : update player active cache
-			np.PID = PID
-			local data = NS.NPC[PID]
-			NS.UpdatePlayerActiveCache(data.PID, data.name, nil)
-
-			-- : has unit?
-			if np.namePlateUnitToken then
-				-- : validate player active cache
-				NS.ValidatePlayerActiveCache(np.namePlateUnitToken, data.PID)
+	for _, namePlate in ipairs(nameplates) do
+		-- : get unit
+		local unitToken = namePlate:GetUnit()
+		if unitToken then
+			-- : valid unit?
+			if NS.IsValidUnitToken(unitToken) then
+				-- : refresh unit data
+				NS.RefreshUnitData(unitToken)
 			end
-		else
-			-- : delete
-			if NS.NPC[PID] then
-				NS.NPC[PID] = nil
-			end
-			np.PID = nil
-		end
-	end
-
-	-- : refresh frame list
-	NS.RefreshFrameList()
-end
-
---|> update unit
-function NS.UpdateNamePlateUnit(unit)
-	-- : exists?
-	if UnitExists(unit) then
-		-- : get unit player data
-		local data = NS.GetUnitPlayerData(unit)
-		if data then
-			-- : get name plate
-			local np = GetNamePlateForUnit(unit)
-			if np then
-				-- : save data
-				np.PID = data.PID
-			end
-
-			-- : update player cache
-			NS.UpdatePlayerActiveCache(data.PID, data.name, nil)
-			NS.ValidatePlayerActiveCache(unit, data.PID)
-
-			-- : refresh frame list
-			NS.RefreshFrameList()
 		end
 	end
 end
 
 --|> update group roles
+local checkMainAssist = false
 function NS.UpdateGroupRoles()
+	-- : in combat lockdown?
+	if InCombatLockdown() then
+		-- : finished
+		checkMainAssist = true
+		return
+	end
+
 	-- : has community flare?
+	checkMainAssist = false
 	if CommunityFlare_GetMainAssist then
 		-- : check for main assist
-		NS.mainAssist = CommunityFlare_GetMainAssist()
+		local player = CommunityFlare_GetMainAssist()
+		if NS.mainAssist ~= player then
+			-- : update main assist
+			NS.mainAssist = player
+		end
+
+		-- : no main assist, check for main tank?
 		if not NS.mainAssist and CommunityFlare_GetMainTank then
 			-- : check for main tank
 			NS.mainAssist = CommunityFlare_GetMainTank()
 		end
 
-		-- : main assist found?
-		if NS.mainAssist then
-			-- : not in combat lockdown?
-			if not InCombatLockdown() then
-				-- : process all
-				local macrotext = "/assist [nodead] " .. NS.mainAssist
-				for k = 1, NS.Options.Bars.MaxNumBars do
-					-- : not set?
-					if not NS.CoreUI.Bar[k].macrotext or (NS.CoreUI.Bar[k].macrotext ~= macrotext) then
-						-- : enable
-						NS.CoreUI.Bar[k].macrotext = macrotext
-						NS.CoreUI.Bar[k].Button:RegisterForClicks("AnyUp", "AnyDown")
-						NS.CoreUI.Bar[k].Button:SetAttribute("type1", "macro")
-						NS.CoreUI.Bar[k].Button:SetAttribute("macrotext1", macrotext)
-						NS.CoreUI.Bar[k].Button:EnableMouse(true)
-					end
+		-- : main assist?
+		if NS.mainAssist and (NS.mainAssist ~= NS.Player.Name) then
+			-- : process all
+			local macrotext = "/assist [nodead] " .. gsub(NS.mainAssist, "-(.*)", "")
+			for k = 1, NS.Options.Bars.MaxNumBars do
+				-- : not set?
+				local enable = false
+				if not NS.CoreUI.Bar[k].macrotext then
+					-- : enabled
+					enable = true
+				elseif (NS.CoreUI.Bar[k].macrotext ~= macrotext) then
+					-- : direct /target macro not
+					if not NS.CoreUI.Bar[k].macrotext:find("/target") then
+						-- : enabled
+						enable = true
+					end					
+				end
+
+				-- enabled?
+				if enabled then
+					-- : setup button
+					NS.CoreUI.Bar[k].macrotext = macrotext
+					NS.CoreUI.Bar[k].Button:RegisterForClicks("AnyUp", "AnyDown")
+					NS.CoreUI.Bar[k].Button:SetAttribute("type1", "macro")
+					NS.CoreUI.Bar[k].Button:SetAttribute("macrotext1", macrotext)
+					NS.CoreUI.Bar[k].Button:EnableMouse(true)
 				end
 			end
 		end
@@ -609,70 +695,255 @@ end
 
 --|> update battlefield score
 function NS.UpdateBattlefieldScore()
-	-- : scoreboard secret when inside PvP content?
-	local parse = true
-	if (NS.BuildVersion >= 120001) then
-		-- : check match state
-		local state = GetActiveMatchState()
-		if state == Enum.PvPMatchState.Engaged then
-			-- : do not parse
-			parse = false
+	-- : check match state
+	NS.MatchState = GetActiveMatchState()
+	if NS.MatchState <= Enum.PvPMatchState.Engaged then
+		-- : get player info
+		local playerInfo = GetScoreInfoByPlayerGuid(NS.Player.GUID)
+		if playerInfo then
+			-- : process all
+			for i=1, GetNumBattlefieldScores() do
+				-- : get score info
+				local info = GetScoreInfo(i)
+				if info and info.name and not issecretvalue(info.name) then
+					-- : enemy team faction?
+					if playerInfo.faction ~= info.faction then
+						-- : add to enemy player cache
+						NS.EnemyPlayerCache[info.name] = info
+					end
+				end
+			end
+		end
+
+		-- : finished
+		return
+	end
+
+	-- : process all
+	local count, maxlevels = 0, 0
+	for i=1, MAX_RAID_MEMBERS do
+		-- get name / rank
+		local name, rank, _, level = GetRaidRosterInfo(i)
+		if name and level then
+			-- : max level?
+			if level == NS.MaxLevel then
+				-- : increase
+				maxlevels = maxlevels + 1
+			end
+
+			-- : increase
+			count = count + 1
 		end
 	end
 
-	-- : should parse?
-	if parse == true then
-		-- : process all
-		local currentTime = GetTime()
-		for i = 1, GetNumBattlefieldScores() do
-			-- : get score info
-			local info = GetScoreInfo(i)
-			if info and info.name and info.guid then
-				-- : not intialized?
-				if not NS.PSC[info.guid] then
-					-- : create
-					NS.PSC[info.guid] = {}
+	-- : max level pvp?
+	local maxLevelPvP = false
+	if (count > 0) and (count == maxlevels) then
+		maxLevelPvP = true
+	end
 
-					-- : get role
-					local role = "UNKNOWN"
-					if info.talentSpec then
-						role = NS.GetRoleFromSpecialization(info.talentSpec)
-					elseif info.roleAssigned == 2 then
-						role = "TANK"
-					elseif info.roleAssigned == 4 then
-						role = "HEALER"
-					end
+	-- : player is mercenary?
+	local playerFaction = NS.Player.FactionID
+	if UnitIsMercenary("player") then
+		-- : alliance?
+		if playerFaction == 1 then
+			-- : horde for now
+			playerFaction = 0
+		else
+			-- : alliance for now
+			playerFaction = 1
+		end
+	end
 
-					-- : save stuff
-					local sexID = select(5, GetPlayerInfoByGUID(info.guid))
-					local classID = NS.GetClassIDFromName(info.classToken)
-					local raceName = RAC:GetRaceToken(info.raceName) or nil
-					NS.PSC[info.guid].realGUID = info.guid
-					NS.PSC[info.guid].realName = info.name
-					NS.PSC[info.guid].C = info.classToken
-					NS.PSC[info.guid].CID = classID
-					NS.PSC[info.guid].F = info.faction
-					NS.PSC[info.guid].HL = info.honorLevel
-					NS.PSC[info.guid].RC = raceName
-					NS.PSC[info.guid].RL = role
-					NS.PSC[info.guid].S = sexID
-					NS.PSC[info.guid].T = currentTime
+	-- : process all
+	local currentTime = time()
+	for i=1, GetNumBattlefieldScores() do
+		-- : get score info
+		local info = GetScoreInfo(i)
+		if info and info.name and info.guid and (info.faction ~= playerFaction) then
+			-- : calculate stuff
+			local role = "UNKNOWN"
+			local sexID = select(5, GetPlayerInfoByGUID(info.guid))
+			local classID = NS.GetClassIDFromName(info.classToken)
+			local raceToken, raceName = RAC:GetRaceToken(info.raceName) or nil
+			if info.talentSpec then
+				role = NS.GetRoleFromSpecialization(info.talentSpec)
+			elseif info.roleAssigned == 2 then
+				role = "TANK"
+			elseif info.roleAssigned == 4 then
+				role = "HEALER"
+			elseif info.roleAssigned == 8 then
+				role = "DAMAGER"
+			end
 
-					-- : main assist?
-					if NS.mainAssist then
-						-- : target main assist's target
-						NS.PSC[info.guid].macrotext = "/assist [nodead] " .. NS.mainAssist
-					elseif info.name and not issecretvalue(info.name) then
-						-- : target name
-						NS.PSC[info.guid].macrotext = "/target " .. info.name
-					end
+			-- : always use full name
+			local player = info.name
+			if not strmatch(player, "-") then
+				-- : has honor level?
+				if info.honorLevel > 0 then
+					-- : use player realm
+					player = player .. "-" .. NS.PlayerRealm
 				end
+			end
 
-				-- : save current info (for debugging)
-				NS.PSC[info.guid].info = info
+			-- : new player score cache?
+			if not NS.PSC[info.guid] then
+				-- : initialize
+				NS.PSC[info.guid] = {}
+			end
+
+			-- : update player score cache
+			NS.PSC[info.guid].GUID = info.guid
+			NS.PSC[info.guid].NAME = player
+			NS.PSC[info.guid].C = info.classToken
+			NS.PSC[info.guid].CID = classID
+			NS.PSC[info.guid].F = info.faction
+			NS.PSC[info.guid].HL = info.honorLevel
+			NS.PSC[info.guid].MID = NS.mapID
+			NS.PSC[info.guid].RC = raceName
+			NS.PSC[info.guid].RL = role
+			NS.PSC[info.guid].ROLE = info.roleAssigned
+			NS.PSC[info.guid].RT = raceToken
+			NS.PSC[info.guid].S = sexID
+			NS.PSC[info.guid].SPEC = info.talentSpec
+			NS.PSC[info.guid].T = currentTime
+
+			-- : new player?
+			if not NS.PlayerDB[player] then
+				-- : create
+				NS.PlayerDB[player] = {}
+			end
+
+			-- : save / update base info
+			NS.PlayerDB[player].GUID = info.guid
+			NS.PlayerDB[player].C = info.classToken
+			NS.PlayerDB[player].CID = classID
+			NS.PlayerDB[player].HL = info.honorLevel
+			NS.PlayerDB[player].MID = NS.mapID
+			NS.PlayerDB[player].RC = raceName
+			NS.PlayerDB[player].RL = role
+			NS.PlayerDB[player].ROLE = info.roleAssigned
+			NS.PlayerDB[player].RT = raceToken
+			NS.PlayerDB[player].S = sexID
+			NS.PlayerDB[player].SPEC = info.talentSpec
+			NS.PlayerDB[player].T = currentTime
+
+			-- : get race info from name (if possible)
+			local raceID, factionID = NS.GetRaceInfoFromName(raceName, nil)
+			if raceID and factionID then
+				-- : update
+				NS.PSC[info.guid].F = factionID
+				NS.PSC[info.guid].RID = raceID
+				NS.PlayerDB[player].F = factionID
+				NS.PlayerDB[player].RID = raceID
+			end
+
+			-- : max level pvp?
+			if maxLevelPvP then
+				-- : update
+				NS.PSC[info.guid].L = NS.MaxLevel
+				NS.PlayerDB[player].L = NS.MaxLevel
 			end
 		end
 	end
+end
+
+--|> purge PSC
+function NS.ValidatePSC()
+	-- : process all
+	local currentTime = time()
+	for GUID, data in pairs(NS.PSC) do
+		-- : purge bots
+		if data.HL == 0 then
+			-- : delete
+			wipe(NS.PSC[GUID])
+			NS.PSC[GUID] = nil
+		-- : same faction as player?
+		elseif data.F == NS.Player.FactionID then
+			-- : delete
+			wipe(NS.PSC[GUID])
+			NS.PSC[GUID] = nil
+		else
+			-- : no time?
+			if not data.T then
+				-- : delete
+				wipe(NS.PSC[GUID])
+				NS.PSC[GUID] = nil
+			else
+				-- : has decimal?
+				if mfloor(data.T) ~= data.T then
+					-- : update time
+					NS.PSC[GUID].T = currentTime
+				else
+					-- : expired?
+					if data.T < (currentTime - (86400 * 7)) then
+						-- : delete
+						wipe(NS.PSC[GUID])
+						NS.PSC[GUID] = nil
+					end
+				end
+			end
+		end
+
+		-- : not purged?
+		if NS.PSC[GUID] then
+			-- : no race name?
+			if not NS.PSC[GUID].RC then
+				-- : has info still?
+				if NS.PSC[GUID].info then
+					-- : has race name?
+					local info = NS.PSC[GUID].info
+					if info.raceName then
+						-- : get race token
+						local raceToken, raceName = RAC:GetRaceToken(info.raceName) or nil
+						if raceToken and raceName then
+							-- : update race
+							NS.PSC[GUID].RC = raceName
+							NS.PSC[GUID].RT = raceToken
+						end
+					end
+				end
+			-- : no race token?
+			elseif not NS.PSC[GUID].RT then
+				-- : get race token
+				local raceToken, raceName = RAC:GetRaceToken(NS.PSC[GUID].RC) or nil
+				if raceToken and raceName then
+					-- : update race
+					NS.PSC[GUID].RC = raceName
+					NS.PSC[GUID].RT = raceToken
+				end
+			end
+
+			-- : no GUID?
+			if not NS.PSC[GUID].GUID then
+				-- : save GUID
+				NS.PSC[GUID].GUID = GUID
+			end
+
+			-- : old realName?
+			if NS.PSC[GUID].realName then
+				-- : save name
+				NS.PSC[GUID].NAME = NS.PSC[GUID].realName
+				NS.PSC[GUID].realName = nil
+			end
+
+			-- : remove old field
+			NS.PSC[GUID].realGUID = nil
+		end
+	end
+end
+
+--|> create weizFrame (for specialization text)
+function NS.weizFrame_Create()
+	-- : create / setup frame
+	weizFrame = weizFrame or CreateFrame("Frame", nil, UIParent)
+	weizFrame:SetSize(150, 20)
+	weizFrame:ClearAllPoints()
+	weizFrame.Text = weizFrame:CreateFontString(nil, "OVERLAY")
+	weizFrame.Text:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 12, "OUTLINE")
+	weizFrame.Text:SetAllPoints()
+	weizFrame.Text:SetTextColor(1, 1, 1, 1)
+	weizFrame.Text:SetText("TESTING")
 end
 
 --|> OnEvent
@@ -681,129 +952,163 @@ local function OnEvent(self, event, ...)
 	if event == "INSPECT_READY" then
 		-- : get unit token from GUID
 		local GUID = ...
-		local player = nil
-		local PlayerID = nil
-		local unitToken = UnitTokenFromGUID(GUID)
-		if unitToken then
-			-- : get inspect specialization ID
-			local specID = GetInspectSpecialization(unitToken)
-			if specID then
-				-- : get role
-				local _, _, _, _, Role = GetSpecializationInfoByID(specID)
-				if Role then
-					-- : get PID
-					local PID = NS.GetPlayerIDByUnit(unitToken)
-					if NS.NotifyInspectCache[PID] then
-						-- : finally get the role
-						player = NS.NotifyInspectCache[PID]
-						PlayerID = PID
-					end
-				end
-
-				-- : found player
-				if player and PlayerID then
-					-- : save role
-					NS.PlayerDB[player].RL = Role
-					NS.PlayerDB[player].E = nil
+		if GUID and not issecretvalue(GUID) then
+			-- : inspecting?
+			if NS.NotifyInspectCache[GUID] then
+				-- : get unit token
+				local unitToken = UnitTokenFromGUID(GUID)
+				if unitToken then
+					-- : get inspect specialization ID
+					local specID = GetInspectSpecialization(unitToken)
+					if specID then
+						-- : get role
+						local _, _, _, _, Role = GetSpecializationInfoByID(specID)
+						if Role then
+							-- : get PlayerID
+							local player = NS.NotifyInspectCache[GUID]
+							local PlayerID = NS.GetPIDForUnit(unitToken)
+							if PlayerID then
+								-- : save role
+								NS.PlayerDB[player].RL = Role
+								NS.PlayerDB[player].E = nil
 		
-					-- : clear notify inspect
-					NS.NotifyInspectCache[PlayerID] = nil
+								-- : clear notify inspect
+								NS.NotifyInspectCache[PlayerID] = nil
 
-					-- : player on bars?
-					if NS.PlayersOnBars[PlayerID] then
-						-- : refresh bar by PID
-						NS.PlayerActiveCache[PlayerID].RL = Role
-						NS.RefreshBarByPID(PlayerID)
-					else
-						-- : refresh current list
-						NS.RefreshCurrentList()
-					end
+								-- : player on bars?
+								if NS.PlayersOnBars[PlayerID] then
+									-- : refresh bar by PID
+									NS.PlayerActiveCache[PlayerID].RL = Role
+									NS.RefreshBarByPID(PlayerID)
+								else
+									-- : refresh current list
+									NS.RefreshCurrentList()
+								end
 
-					-- : tooltip shown?
-					if weizPVP_CoreTooltip:IsShown() then
-						-- : update tooltip
-						NS.ShowPlayerTooltip(PlayerID)
+								-- : tooltip shown?
+								if weizPVP_CoreTooltip:IsShown() then
+									-- : update tooltip
+									NS.ShowPlayerTooltip(PlayerID)
+								end
+							end
+
+						end
 					end
 				end
-			end
-		end
 
-		-- : reset?
-		if not player or not PlayerID then
-			-- : reset
-			NS.NotifyInspectCache = {}
+				-- : delete
+				NS.NotifyInspectCache[GUID] = nil
+			end
 		end
 	-- : name plate unit added?
 	elseif event == "NAME_PLATE_UNIT_ADDED" then
 		-- : update unit
 		local unitToken = ...
-		NS.UpdateNamePlateUnit(unitToken)
+		NS.NamePlateUnitAdded(unitToken)
 	-- : name plate unit removed?
 	elseif event == "NAME_PLATE_UNIT_REMOVED" then
 		-- : get name plate
 		local unitToken = ...
-		local np = GetNamePlateForUnit(unitToken)
-		if np and np.PID then
-			-- : delete
-			NS.NPC[np.PID] = nil
-			np.PID = nil
-
-			-- : refresh frame list
-			NS.RefreshFrameList()
-		end
+		NS.NamePlateUnitRemoved(unitToken)
 	-- : player entering battleground
 	elseif event == "PLAYER_ENTERING_BATTLEGROUND" then
 		-- : request battlefield score data
 		RequestBattlefieldScoreData()
 	-- : player entering world?
 	elseif event == "PLAYER_ENTERING_WORLD" then
-		-- : has window position?
-		_weizpvp_global_settings = _weizpvp_global_settings or {}
-		if (_weizpvp_global_settings.WindowPosition) then
-			-- : calculate position
-			local height = _weizpvp_global_settings.WindowPosition.height or NS.ButtonHeight
-			local left = _weizpvp_global_settings.WindowPosition.left or 0
-			local scale = _weizpvp_global_settings.WindowPosition.scale or 1
-			local top =  _weizpvp_global_settings.WindowPosition.top or 0
-			local width = _weizpvp_global_settings.WindowPosition.width or NS.ButtonWidth
-			if (height < NS.ButtonHeight) then height = NS.ButtonHeight end
-			if (width < NS.ButtonWidth) then width = NS.ButtonWidth end
-
-			-- : move window
-			NS.weizPVP_Frame:ClearAllPoints()
-			NS.weizPVP_Frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left / scale, top / scale)
-			NS.weizPVP_Frame:SetWidth(width / scale)
-			NS.weizPVP_Frame:SetHeight(height / scale)
-		end
+		local isInitialLogin, isReloadingUi = ...
 
 		-- : reset / refresh
 		NS.NPC = {}
+		NS.PID_Cache = {}
+		NS.EnemyPlayerCache = {}
 		NS.UpdateGroupRoles()
-		NS.RefreshFrameList()
+		NS.weizFrame_Create()
+
+		-- : get proper zone / state
+		NS.Zone.pvpType = select(1, GetZonePVPInfo())
+		NS.Zone.InInstance, NS.Zone.instance = IsInInstance()
+		NS.MatchState = GetActiveMatchState()
+		NS.mapID = GetBestMapForUnit("player")
+
+		-- : validate player score cache
+		NS.ValidatePSC()
+	-- : player leaving world?
+	elseif event == "PLAYER_LEAVING_WORLD" then
+		-- : update specialization
+		NS.UpdateNamePlateSpecialization()
 	-- : player logout?
 	elseif event == "PLAYER_LOGOUT" then
-		-- : get position
-		local scale = NS.weizPVP_Frame:GetScale()
-		local left, top = NS.weizPVP_Frame:GetLeft() * scale, NS.weizPVP_Frame:GetTop() * scale
-		local width, height = NS.weizPVP_Frame:GetWidth() * scale, NS.weizPVP_Frame:GetHeight() * scale
-		if (height > NS.ButtonHeight) then height = NS.ButtonHeight end
-		if (width > NS.ButtonWidth) then width = NS.ButtonWidth end
-
 		-- : save settings
-		_weizpvp_global_settings = _weizpvp_global_settings or {}
-		_weizpvp_global_settings.WindowPosition = { height = height, left = left, scale = scale, top = top, width = width }
+		NS.globalDB.global.PSC = NS.PSC or {}
+	-- : player regen enabled?
+	elseif event == "PLAYER_REGEN_ENABLED" then
+		-- : check main assist?
+		if checkMainAssist == true then
+			-- : update group roles
+			NS.UpdateGroupRoles()
+		end
 	-- : player roles changed?
 	elseif event == "PLAYER_ROLES_ASSIGNED" then
 		-- : update group roles
 		NS.UpdateGroupRoles()
 	-- : player target changed?
 	elseif event == "PLAYER_TARGET_CHANGED" then
-		-- : update target
-		NS.UpdateNamePlateUnit("target")
+		-- : get name plate
+		local unitToken = nil
+		local namePlate = GetNamePlateForUnit("target")
+		if namePlate then
+			-- : get unit
+			unitToken = namePlate:GetUnit()
+			if unitToken then
+				-- : update unit
+				NS.UpdateNamePlateUnit(unitToken)
+
+				-- : save last target name plate
+				NS.NamePlateLastTarget = namePlate
+			end
+		end
+
+		-- : update specialization
+		NS.UpdateNamePlateSpecialization(namePlate, unitToken)
+	-- : player target died?
+	elseif event == "PLAYER_TARGET_DIED" then
+		-- : update specialization
+		NS.UpdateNamePlateSpecialization()
 	-- : pvp match state changed?
 	elseif event == "PVP_MATCH_STATE_CHANGED" then
+		-- : save match state
+		NS.MatchState = GetActiveMatchState()
+
 		-- : request battlefield score data
 		RequestBattlefieldScoreData()
+	-- : unit flags
+	elseif event == "UNIT_FLAGS" then
+		-- : get name plate
+		local unitToken = ...
+		local baseToken = unitToken:gsub("%d", "")
+		if baseToken == "nameplate" then
+			-- : update unit
+			NS.UpdateNamePlateUnit(unitToken)
+		end
+	-- : unit health
+	elseif event == "UNIT_HEALTH" then
+		-- : update unit
+		local unitToken = ...
+		local baseToken = unitToken:gsub("%d", "")
+		if baseToken == "nameplate" then
+			-- : update unit
+			NS.UpdateNamePlateUnit(unitToken)
+		end
+	-- : unit target
+	elseif event == "UNIT_TARGET" then
+		-- : update unit
+		local unitToken = ...
+		local baseToken = unitToken:gsub("%d", "")
+		if baseToken == "nameplate" then
+			-- : update unit
+			NS.UpdateNamePlateUnit(unitToken)
+		end
 	-- : update battlefield score
 	elseif event == "UPDATE_BATTLEFIELD_SCORE" then
 		-- : update battlefield score
@@ -813,48 +1118,44 @@ local function OnEvent(self, event, ...)
 		NS.UpdateGroupRoles()
 	-- : update mouseover unit
 	elseif event == "UPDATE_MOUSEOVER_UNIT" then
-		-- : update mouseover
-		NS.UpdateNamePlateUnit("mouseover")
-	-- : zone changed
-	elseif event == "ZONE_CHANGED" or event == "ZONE_CHANGED_NEW_AREA" then
-		-- : reset / refresh
-		NS.NPC = {}
-		NS.RefreshFrameList()
+		-- : get name plate
+		local namePlate = GetNamePlateForUnit("mouseover")
+		if namePlate then
+			-- : get unit
+			local unitToken = namePlate:GetUnit()
+			if unitToken then
+				-- : update unit
+				NS.UpdateNamePlateUnit(unitToken)
+
+				-- : specialization text enabled?
+				if NS.Options.BattleGrounds.SpecText then
+					-- : cached with no specialization?
+					local PID = NS.NPC[unitToken]
+					if PID and NS.PID_Cache[PID] and not NS.PID_Cache[PID].specialization then
+						-- : get mouse over specialization
+						NS.PID_Cache[PID].specialization = NS.GetMouseoverSpecialization("mouseover")
+						if NS.PID_Cache[PID].specialization then
+							-- : update specialization
+							NS.UpdateNamePlateSpecialization(namePlate, unitToken)
+						end
+					end
+				end
+			end
+		end
 	end
 end
 
--- : create frame
-NS.weizPVP_Frame = CreateFrame("Frame", nil, UIParent)
-NS.weizPVP_Frame.Bars = {}
-NS.weizPVP_Frame:SetSize(NS.ButtonWidth, NS.ButtonHeight)
-NS.weizPVP_Frame:SetPoint("CENTER", 0, 0)
-NS.weizPVP_Frame.bg = NS.weizPVP_Frame:CreateTexture(nil, "BACKGROUND")
-NS.weizPVP_Frame.bg:SetAllPoints()
-NS.weizPVP_Frame.bg:SetColorTexture(0, 0, 0, 1)
-NS.weizPVP_Frame:SetMovable(true)
-NS.weizPVP_Frame:EnableMouse(true)
-NS.weizPVP_Frame:RegisterForDrag("LeftButton")
-NS.weizPVP_Frame.Header = NS.weizPVP_Frame:CreateFontString(nil, "ARTWORK", nil, 2)
-NS.weizPVP_Frame.Header:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 12, "OUTLINE")
-NS.weizPVP_Frame.Header:SetPoint("LEFT", NS.weizPVP_Frame, "LEFT", 2, 0)
-NS.weizPVP_Frame.Header:SetSize(NS.ButtonWidth, NS.ButtonHeight)
-NS.weizPVP_Frame.Header:SetTextColor(1, 1, 1, 1)
-NS.weizPVP_Frame.Header:SetJustifyH("LEFT")
-NS.weizPVP_Frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-NS.weizPVP_Frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-NS.weizPVP_Frame.Events = CreateFrame("Frame", nil, NS.weizPVP_Frame)
-NS.weizPVP_Frame.Events:RegisterEvent("INSPECT_READY")
-NS.weizPVP_Frame.Events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
-NS.weizPVP_Frame.Events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
-NS.weizPVP_Frame.Events:RegisterEvent("PLAYER_ENTERING_BATTLEGROUND")
-NS.weizPVP_Frame.Events:RegisterEvent("PLAYER_ENTERING_WORLD")
-NS.weizPVP_Frame.Events:RegisterEvent("PLAYER_LOGOUT")
-NS.weizPVP_Frame.Events:RegisterEvent("PLAYER_ROLES_ASSIGNED")
-NS.weizPVP_Frame.Events:RegisterEvent("PLAYER_TARGET_CHANGED")
-NS.weizPVP_Frame.Events:RegisterEvent("PVP_MATCH_STATE_CHANGED")
-NS.weizPVP_Frame.Events:RegisterEvent("UPDATE_BATTLEFIELD_SCORE")
-NS.weizPVP_Frame.Events:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-NS.weizPVP_Frame.Events:RegisterEvent("ZONE_CHANGED")
-NS.weizPVP_Frame.Events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-NS.weizPVP_Frame.Events:SetScript("OnEvent", OnEvent)
-NS.weizPVP_Frame:Hide()
+-- : create events frame
+NS.weizPVP_Events = CreateFrame("Frame", nil, UIParent)
+NS.weizPVP_Events:RegisterEvent("INSPECT_READY")
+NS.weizPVP_Events:RegisterEvent("PLAYER_ENTERING_BATTLEGROUND")
+NS.weizPVP_Events:RegisterEvent("PLAYER_ENTERING_WORLD")
+NS.weizPVP_Events:RegisterEvent("PLAYER_LEAVING_WORLD")
+NS.weizPVP_Events:RegisterEvent("PLAYER_LOGOUT")
+NS.weizPVP_Events:RegisterEvent("PLAYER_REGEN_ENABLED")
+NS.weizPVP_Events:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+NS.weizPVP_Events:RegisterEvent("PVP_MATCH_STATE_CHANGED")
+NS.weizPVP_Events:RegisterEvent("UPDATE_BATTLEFIELD_SCORE")
+NS.weizPVP_Events:RegisterEvent("ZONE_CHANGED")
+NS.weizPVP_Events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+NS.weizPVP_Events:SetScript("OnEvent", OnEvent)

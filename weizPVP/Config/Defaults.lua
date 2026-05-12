@@ -3,7 +3,7 @@
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
 
-NS._DefaultOptions = {}
+NS._DefaultProfileOptions = {}
 
 --: Create Default Options
 ---------------------------------------
@@ -24,13 +24,12 @@ Options.Addon = {
 --: Lab
 ---------------------------------------
 Options.Lab = {
-	DynamicProcessing = false
 }
 
 --: Database
 ---------------------------------------
 Options.Database = {
-	CleanTime = 30,
+	CleanTime = 90,
 	LastCleaned = 0
 }
 
@@ -75,6 +74,7 @@ Options.Bars = {
 	AlphaDefault = 1,
 	RowHeight = 17,
 	VerticalSpacing = 1,
+	UpdateHealth = true,
 	Texture = "weizPVP: StatusBar",
 	BarTexture = "weizPVP: Bar-BG",
 	BarSolid = "weizPVP: SolidStatus",
@@ -91,6 +91,12 @@ Options.Bars = {
 		["b"] = NS.ColorsLUT["unattackableLight"].b,
 		["hex"] = NS.ColorsLUT["unattackableLight"].hex
 	}
+}
+
+--: BattleGrounds
+---------------------------------------
+Options.BattleGrounds = {
+	SpecText = false
 }
 
 --: Sorting
@@ -197,7 +203,14 @@ Options.Frames.List.Height = Options.Frames.List.Height * Options.Bars.MaxNumBar
 
 -- ➡️ Apply Defaults
 ---------------------------------------
-NS._DefaultOptions = {
+NS._DefaultGlobalOptions = {
+	global = {
+		KosList = {},
+		PlayerActiveCache = {},
+		PSC = {},
+	}
+}
+NS._DefaultProfileOptions = {
 	 profile = {
 		Options = Options,
 		KosList = {},

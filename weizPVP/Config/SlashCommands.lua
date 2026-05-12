@@ -166,18 +166,6 @@ NS.SlashCommands = {
 			func = function()
 				NS.ResetPlayerDB()
 			end
-		},
-		--!! RESET PLAYER DB
-		debug = {
-			cmdHidden = true,
-			name = "debug",
-			desc = "toggle debug",
-			type = "execute",
-			order = 99,
-			func = function()
-				-- NS.DebugToggle()
-				print("DEBUG DISABLED")
-			end
 		}
 	}
 }

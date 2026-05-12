@@ -4,34 +4,45 @@
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
 
---: 🆙 Upvalues :----------------------
+-- : 🆙 Upvalues :----------------------
 local gsub = gsub
 local select = select
 local issecretvalue = issecretvalue
 local GetClassColor = GetClassColor
 local WrapTextInColorCode = C_ColorUtil.WrapTextInColorCode
 
---: NAMESPACE :------------------------
+-- : NAMESPACE :------------------------
 NS.KOS = {}
 
---> Is Player Target <-----------------------------------------------
+--|> Is Player Target <-----------------------------------------------
 local function IsPlayerTarget()
-	local fullName = NS.GetFullNameOfUnit("target")
-	if not issecretvalue(fullName) and (fullName == NS.KOS.menuPlayerName) then
+	-- : find player name (if possible)
+	local player = nil
+	local PID = NS.GetPIDForUnit("target")
+	if NS.PlayersOnBars[PID] then
+		-- : proper NAME?
+		if NS.PlayerActiveCache[PID].NAME then
+			-- : set player
+			player = NS.PlayerActiveCache[PID].NAME
+		end
+	end
+
+	-- : found player?
+	if player and not issecretvalue(player) and (player == NS.KOS.menuPlayerName) then
+		-- : reset / new target
 		NS.Crosshair.Reset()
 		NS.Crosshair.NewTarget()
 	end
 end
 
---> Change Kos Status <----------------------------------------------
+--|> Change Kos Status <----------------------------------------------
 function NS.KOS.ChangeKosStatus(playerName)
 	if not playerName or issecretvalue(playerName) then
 		return
 	end
 	local unescapedName = NS.Unescape(playerName)
 	NS.KOS.menuPlayerName = unescapedName
-	local printedName =
-	WrapTextInColorCode(gsub(unescapedName, "-(.*)", ""), select(4, GetClassColor(NS.PlayerDB[unescapedName].C)))
+	local printedName = WrapTextInColorCode(gsub(unescapedName, "-(.*)", ""), select(4, GetClassColor(NS.PlayerDB[unescapedName].C)))
 	local printedRealm = gsub(unescapedName, "^(.*-)", "")
 	if NS.KosList[NS.KOS.menuPlayerName] then
 		NS.KOS.RemovePlayer(NS.KOS.menuPlayerName)
@@ -49,66 +60,88 @@ function NS.KOS.ChangeKosStatus(playerName)
 	IsPlayerTarget()
 end
 
---> Set Menu Text <--------------------------------------------------
+--|> Set Menu Text <--------------------------------------------------
 function NS.KOS.SetMenuText(playerName)
 	return NS.KosList[playerName] and
 		"|TInterface/Addons/weizPVP/Addons/KOS/Media/kos_icon_remove.tga:0|t |cff8fdaffRemove from|r |cffff0037KOS|r" or
 		"|TInterface/Addons/weizPVP/Addons/KOS/Media/kos_icon_add.tga:0|t |cff8fdaffAdd to|r |cffff0037KOS|r"
 end
 
---> Clear Stored List <----------------------------------------------
+--|> Clear Stored List <----------------------------------------------
 function NS.KOS.ClearStoredList()
 	wipe(NS.KosList)
 end
 
---> Enable <---------------------------------------------------------
+--|> Enable <---------------------------------------------------------
 function NS.KOS.Enable()
 	IsPlayerTarget()
 end
 
---> Disable <--------------------------------------------------------
+--|> Disable <--------------------------------------------------------
 function NS.KOS.Disable()
 	IsPlayerTarget()
 end
 
---> AddPlayer <------------------------------------------------------
+--|> AddPlayer <------------------------------------------------------
 function NS.KOS.AddPlayer(playerName)
 	-- : not found?
 	if not playerName then
 		return
 	end
 
-	-- Add player to KOS list and refresh the core player list
+	-- : Add player to KOS list and refresh the core player list
 	NS.KosList[playerName] = true
 	NS.SortNearbyList()
 	NS.RefreshCurrentList()
 
-	-- Refresh Crosshair is targeting the added player
-	local fullName = NS.GetFullNameOfUnit("target")
-	if not issecretvalue(fullName) and (fullName == playerName) and NS.Options.Crosshair.Enabled then
+	-- : find player name (if possible)
+	local player = nil
+	local PID = NS.GetPIDForUnit("target")
+	if NS.PlayersOnBars[PID] then
+		-- : proper NAME?
+		if NS.PlayerActiveCache[PID].NAME then
+			-- : set player
+			player = NS.PlayerActiveCache[PID].NAME
+		end
+	end
+
+	-- : found player?
+	if player and not issecretvalue(player) and (player == playerName) and NS.Options.Crosshair.Enabled then
+		-- : reset / new target
 		NS.Crosshair.Reset()
 		NS.Crosshair.NewTarget()
 	end
 end
 
---> RemovePlayer <---------------------------------------------------
+--|> RemovePlayer <---------------------------------------------------
 function NS.KOS.RemovePlayer(playerName)
-	-- Remove from KOS list and refresh list
+	-- : Remove from KOS list and refresh list
 	NS.KosList[playerName] = nil
 	NS.SortNearbyList()
 	NS.RefreshCurrentList()
 
-	-- Refresh Crosshair is targeting the added player
-	local fullName = NS.GetFullNameOfUnit("target")
-	if not issecretvalue(fullName) and (fullName == playerName) and NS.Options.Crosshair.Enabled then
+	-- : find player name (if possible)
+	local player = nil
+	local PID = NS.GetPIDForUnit("target")
+	if NS.PlayersOnBars[PID] then
+		-- : proper NAME?
+		if NS.PlayerActiveCache[PID].NAME then
+			-- : set player
+			player = NS.PlayerActiveCache[PID].NAME
+		end
+	end
+
+	-- : found player?
+	if player and not issecretvalue(player) and (player == playerName) and NS.Options.Crosshair.Enabled then
+		-- : reset / new target
 		NS.Crosshair.Reset()
 		NS.Crosshair.NewTarget()
 	end
 end
 
---> Migrate character list to global KOS list
+--|> Migrate character list to global KOS list
 function NS.KOS.MigrateKosList()
-	-- has old KOS?
+	-- : old KOS?
 	if (NS.oldKosList) then
 		-- global not created?
 		if (not NS.KosList) then
@@ -116,17 +149,19 @@ function NS.KOS.MigrateKosList()
 			NS.KosList = {}
 		end
 
-		-- process all local KOS
+		-- : process all local KOS
 		for k,v in pairs(NS.oldKosList) do
 			-- not global KOS already?
 			if (not NS.KosList[k]) then
-				-- add player to global KOS list
+				-- : add player to global KOS list
 				NS.KosList[k] = true
 
-				-- remove player from local KOS list
+				-- : remove player from local KOS list
 				NS.oldKosList[k] = nil
 			end
 		end
+
+		-- : delete
 		NS.charDB.profile.KosList = nil
 		NS.oldKosList = nil
 	end

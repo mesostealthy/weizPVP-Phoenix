@@ -22,31 +22,14 @@ local function PulseTimeoutUpdate()
 	end
 	if pulseTargetCount == 5 then
 		pulseTargetCount = 1
-		if UnitExists("target") then
-			NS.GetUnitData("target")
-			NS.GetUnitPlayerData("target")
-		end
+		NS.UpdateNamePlateUnit("target")
 		NS.UpdateGroupRoles()
 	else
 		pulseTargetCount = pulseTargetCount + 1
 	end
 end
 
---> Dynamic Processing <---------------------------------------------
-local dpCounter = 0
-local function DynamicProcessingTicker()
-	if dpCounter == 5 then
-		NS.DynamicProcessing()
-		dpCounter = 0
-	else
-		dpCounter = dpCounter + 1
-	end
-end
-
 --> Update pulsed functions <----------------------------------------
 function NS.PulseEvent()
 	PulseTimeoutUpdate()
-	if NS.Options.Lab.DynamicProcessing then
-		DynamicProcessingTicker()
-	end
 end

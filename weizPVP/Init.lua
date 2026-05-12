@@ -4,12 +4,14 @@
 -- 📌 Loads player data.
 ---------------------------------------------------------------------------------------------------
 local ADDON_NAME, NS = ...
+weizNS = NS	-- TODO
 
 -- ⬆️ Upvalues
 local GetUnitName = GetUnitName
 local GetRealmName = GetRealmName
 local GetBuildInfo = GetBuildInfo
 local UnitFactionGroup = UnitFactionGroup
+local GetMaxLevelForLatestExpansion = GetMaxLevelForLatestExpansion
 local GetAddOnMetadata = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
 local UnitGUID = UnitGUID
 local UnitLevel = UnitLevel
@@ -61,7 +63,9 @@ local function GetPlayerInfo()
 	NS.Player.GUID = UnitGUID("player")
 	NS.Player.Name = GetUnitName("player")
 	NS.Player.Faction = select(1, UnitFactionGroup("player"))
+	NS.Player.FactionID = NS.Player.Faction == FACTION_ALLIANCE and 1 or 0
 	NS.Player.Level = UnitLevel("player")
+	NS.Player.MaxLevel = NS.Player.Level == GetMaxLevelForLatestExpansion() and true or false
 	NS.Player.FromRealm = GetRealmName()
 	NS.Player.FromSubRealm = gsub(NS.Player.FromRealm, "[%s%-]", "")
 	NS.PlayerRealm = NS.Player.FromSubRealm
@@ -89,19 +93,19 @@ function weizPVP.OnInitialize()
 	NS.addonInitializing = true
 
 	-- Player and Addon settings loading
+	NS.MaxLevel = GetMaxLevelForLatestExpansion()
 	GetPlayerInfo()
 	SetAddonInfo()
 
 	-- build stuff
 	NS.BuildClasses()
+	NS.BuildRaces()
 	NS.BuildSpecs()
 
-	-- Bindings and Interface Options
+	-- Bindings, Datbase and Interface Options
+	NS.LoadDB()
 	NS.SetupBindings()
 	NS.CreateInterfaceOptions()
-
-	-- Database
-	NS.LoadDB()
 	NS.InitializeAlerts()
 
 	if NS.Options.Crosshair.Enabled then

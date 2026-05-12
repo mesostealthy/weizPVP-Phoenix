@@ -6,6 +6,7 @@ local _, NS = ...
 -- ⬆️ Upvalues
 --------------------------------------------------------
 local GetSpecializationInfoForClassID = GetSpecializationInfoForClassID
+local issecretvalue = issecretvalue
 
 -- : global variables
 NS.TankSpecs = {}
@@ -57,6 +58,12 @@ end
 
 -- |> GET ROLE FROM SPECIALIZATION
 function NS.GetRoleFromSpecialization(specName)
+	-- : sanity check
+	if not specName or issecretvalue(specName) then
+		-- : failed
+		return nil
+	end
+
 	-- : tank?
 	if NS.IsTank(specName) then
 		return "TANK"
@@ -66,4 +73,7 @@ function NS.GetRoleFromSpecialization(specName)
 	else
 		return "DAMAGER"
 	end
+
+	-- : failed
+	return nil
 end

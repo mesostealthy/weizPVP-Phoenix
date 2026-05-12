@@ -35,7 +35,6 @@ local lastTimestamp = GetTime()
 -----------------------------------------------------------
 NS.NearbyListSize = 0
 NS.CurrentList = {}
-NS.CurrentNameplates = {}
 NS.NearbyList = {}
 NS.ActiveList = {}
 NS.InactiveList = {}
@@ -90,7 +89,7 @@ function NS.ManageBarsDisplayed()
 			NS.CoreUI.Bar[i].RoleIcon:SetTexture("Interface/Addons/weizPVP/Media/Icons/unknown.tga", false)
 			NS.CoreUI.Bar[i].Name:SetText("")
 			NS.CoreUI.Bar[i].Target = ""
-			NS.CoreUI.Bar[i].fullName = ""
+			NS.CoreUI.Bar[i].NAME = nil
 			NS.CoreUI.Bar[i].displayName = nil
 			NS.CoreUI.Bar[i].displayGuild = nil
 
@@ -123,8 +122,8 @@ function NS.ManageListTimeouts()
 	local timestamp = GetTime()
 	--: ACTIVE
 	for PID in pairs(NS.ActiveList) do
-		if (timestamp - NS.ActiveList[PID].TimeUpdated) > NS.Options.Sorting.NearbyActiveTimeout and
-			NS.CurrentNameplates[PID] == nil then
+		local diff = math.floor(timestamp - NS.ActiveList[PID].TimeUpdated)
+		if diff > NS.Options.Sorting.NearbyActiveTimeout then
 			NS.InactiveList[PID] = NS.ActiveList[PID]
 			NS.InactiveList[PID].TimeAdded = timestamp + (count * 0.001)
 			NS.ActiveList[PID] = nil
@@ -137,7 +136,8 @@ function NS.ManageListTimeouts()
 	--: ACTIVE DEAD
 	timestamp = GetTime()
 	for PID in pairs(NS.ActiveDeadList) do
-		if (timestamp - NS.ActiveDeadList[PID].TimeUpdated) > NS.Options.Sorting.NearbyActiveTimeout then
+		local diff = math.floor(timestamp - NS.ActiveDeadList[PID].TimeUpdated)
+		if diff > NS.Options.Sorting.NearbyActiveTimeout then
 			NS.InactiveDeadList[PID] = NS.ActiveDeadList[PID]
 			NS.InactiveDeadList[PID].TimeAdded = timestamp + (count * 0.001)
 			NS.ActiveDeadList[PID] = nil
@@ -148,7 +148,8 @@ function NS.ManageListTimeouts()
 	--: INACTIVE
 	timestamp = GetTime()
 	for PID in pairs(NS.InactiveList) do
-		if (timestamp - NS.InactiveList[PID].TimeUpdated) > NS.Options.Sorting.NearbyInactiveTimeout then
+		local diff = math.floor(timestamp - NS.InactiveList[PID].TimeUpdated)
+		if diff > NS.Options.Sorting.NearbyInactiveTimeout then
 			NS.InactiveList[PID] = nil
 			NS.NearbyList[PID] = nil
 			NS.PlayerActiveCache[PID] = nil
@@ -160,7 +161,8 @@ function NS.ManageListTimeouts()
 	--: INACTIVE DEAD
 	timestamp = GetTime()
 	for PID in pairs(NS.InactiveDeadList) do
-		if (timestamp - NS.InactiveDeadList[PID].TimeUpdated) > NS.Options.Sorting.NearbyInactiveTimeout then
+		local diff = math.floor(timestamp - NS.InactiveDeadList[PID].TimeUpdated)
+		if diff > NS.Options.Sorting.NearbyInactiveTimeout then
 			NS.InactiveDeadList[PID] = nil
 			NS.NearbyList[PID] = nil
 			NS.PlayerActiveCache[PID] = nil
@@ -226,7 +228,7 @@ function NS.SetBarTargetMacrotext(barID, PID)
 	-- : not in combat lockdown?
 	if not InCombatLockdown() then
 		-- : found bar?
-		local realName = nil
+		local NAME = nil
 		local macrotext = nil
 		local bar = NS.CoreUI.Bar[barID]
 		if bar and bar.PID then
@@ -234,7 +236,7 @@ function NS.SetBarTargetMacrotext(barID, PID)
 			local data = NS.PlayerActiveCache[bar.PID]
 			if data and data.macrotext then
 				-- : found
-				realName = data.realName
+				NAME = data.NAME
 				macrotext = data.macrotext
 			end
 		end
@@ -249,7 +251,7 @@ function NS.SetBarTargetMacrotext(barID, PID)
 				bar.Button:SetAttribute("type1", "macro")
 				bar.Button:SetAttribute("macrotext1", macrotext)
 				bar.Button:EnableMouse(true)
-				bar.Target = realName
+				bar.Target = NAME
 			end
 		else
 			-- : disabled
@@ -276,7 +278,6 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 		else
 			NS.CoreUI.Bar[num].displayName = Name
 		end
-		NS.CoreUI.Bar[num].fullName = Name
 		NS.CoreUI.Bar[num].PID = PID
 		NS.PlayersOnBars[PID] = num
 
@@ -310,13 +311,6 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 			NS.CoreUI.Bar[num].Name:SetText(NS.CoreUI.Bar[num].displayName)
 		end
 
-		--: TAXI ICON
-		if NS.PlayerActiveCache[PID].OnTaxi then
-			NS.CoreUI.Bar[num].Name:SetText(
-				"|TInterface/Addons/weizPVP/Media/Icons/flight_path.tga:0|t " .. NS.CoreUI.Bar[num].Name:GetText()
-			)
-		end
-
 		--: LEVEL
 		NS.CoreUI.Bar[num].Level:SetText(NS.FormatLevelString(Estimated, Level))
 
@@ -341,7 +335,7 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 		--: ROLE
 		if Role then
 			NS.CoreUI.Bar[num].RoleIcon:SetTexture(roleIcons[Role])
-		elseif not issecretvalue(Name) and NS.PlayerDB[Name].RL then
+		elseif not issecretvalue(Name) and NS.PlayerDB[Name] and NS.PlayerDB[Name].RL then
 			NS.CoreUI.Bar[num].RoleIcon:SetTexture(roleIcons[NS.PlayerDB[Name].RL])
 		else
 			NS.CoreUI.Bar[num].RoleIcon:SetTexture(roleIcons["UNKNOWN"])
@@ -356,6 +350,7 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 				NS.CoreUI.Bar[num].DeadIcon:Hide()
 			end
 		end
+
 		--: GUILD TEXT
 		--guildTxtLength = NS.CoreUI.Bar[num].Level:GetWidth() + NS.CoreUI.Bar[num].Name:GetWidth() + 28
 		if NS.CoreUI.Bar[num].DeadIcon:IsShown() then
@@ -550,7 +545,6 @@ end
 function NS.ClearListData()
 	if NS.NearbyCount ~= 0 then
 		wipe(NS.CurrentList)
-		wipe(NS.CurrentNameplates)
 		wipe(NS.NearbyList)
 		wipe(NS.ActiveList)
 		wipe(NS.InactiveList)
@@ -564,9 +558,8 @@ function NS.ClearListData()
 		NS.RefreshCurrentList()
 		NS.UpdateNearbyCount()
 		weizPVP_CoreFrame.ScrollFrame:SetVerticalScroll(0)
-		NS:PlayerTargetEvent()
 		NS.AutoResize()
-		NS.RefreshNamePlateList()
+		NS.UpdateNamePlateUnit("target")
 		NS.CoreUI.ChangeTargetIcon()
 	end
 end
