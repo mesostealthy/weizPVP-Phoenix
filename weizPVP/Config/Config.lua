@@ -5,6 +5,7 @@
 local ADDON_NAME, NS = ...
 
 --: ⬆️ Upvalues :--
+local InCombatLockdown = InCombatLockdown
 local Settings_OpenToCategory = Settings.OpenToCategory
 local SettingsPanel_CategoryList_ScrollBar = SettingsPanel.CategoryList.ScrollBar
 local wipe = wipe
@@ -31,7 +32,9 @@ end
 --> TOGGLE OPTIONS
 -----------------------------------------------------------
 function NS.ToggleOptions()
-	Settings_OpenToCategory(weizPVP.layout) -- open options to layout ID
+	if not InCombatLockdown() then
+		Settings_OpenToCategory(weizPVP.layout) -- open options to layout ID
+	end
 end
 
 -- addon compartment - toggle settings

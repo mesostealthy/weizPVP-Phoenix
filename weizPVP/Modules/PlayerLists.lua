@@ -80,7 +80,9 @@ end
 -- ⚒️ Manage Bars Displayed
 -----------------------------------------------------------
 function NS.ManageBarsDisplayed()
-	for i = 1, NS.Options.Bars.MaxNumBars do
+	-- : process all bars
+	for i=1, NS.Options.Bars.MaxNumBars do
+		-- : bar not nearby?
 		if i > NS.NearbyListSize then
 			NS.CoreUI.Bar[i]:SetAlpha(0)
 			NS.CoreUI.Bar[i]:SetValue(1)
@@ -273,11 +275,7 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 	end
 	if NS.CoreUI.Bar[num] and PID then
 		--: SYNC INFO
-		if not issecretvalue(Name) then
-			NS.CoreUI.Bar[num].displayName = gsub(Name, "-(.*)", "")
-		else
-			NS.CoreUI.Bar[num].displayName = Name
-		end
+		NS.CoreUI.Bar[num].Class = Class
 		NS.CoreUI.Bar[num].PID = PID
 		NS.PlayersOnBars[PID] = num
 
@@ -292,23 +290,23 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 			NS.CoreUI.Bar[num]:SetAlpha(NS.Options.Bars.AlphaDefault)
 		end
 
+		--: NAME TEXT
+		local fullName = Name
+		if NS.PID_Cache[PID] then
+			-- : use cached data
+			fullName = NS.PID_Cache[PID].fullName
+			NS.CoreUI.Bar[num].displayName = NS.PID_Cache[PID].displayedName
+			NS.CoreUI.Bar[num].NAME = fullName
+		else
+			NS.CoreUI.Bar[num].NAME = Name
+		end
+		NS.CoreUI.Bar[num].Name:SetText(NS.CoreUI.Bar[num].displayName)
+
 		--: KOS ICON
-		if not issecretvalue(Name) and NS.KosList[Name] then
+		if not issecretvalue(fullName) and NS.KosList[fullName] then
 			NS.CoreUI.Bar[num].KOSRibbon:Show()
 		else
 			NS.CoreUI.Bar[num].KOSRibbon:Hide()
-		end
-
-		--: NAME TEXT
-		if not issecretvalue(Name) then
-			local _, realmName = strsplit("-", Name)
-			if realmName ~= NS.Player.FromSubRealm then
-				NS.CoreUI.Bar[num].Name:SetText(NS.CoreUI.Bar[num].displayName .. "|cFFFF00CC*|r")
-			else
-				NS.CoreUI.Bar[num].Name:SetText(NS.CoreUI.Bar[num].displayName)
-			end
-		else
-			NS.CoreUI.Bar[num].Name:SetText(NS.CoreUI.Bar[num].displayName)
 		end
 
 		--: LEVEL
@@ -352,13 +350,7 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 		end
 
 		--: GUILD TEXT
-		--guildTxtLength = NS.CoreUI.Bar[num].Level:GetWidth() + NS.CoreUI.Bar[num].Name:GetWidth() + 28
-		if NS.CoreUI.Bar[num].DeadIcon:IsShown() then
-			--guildTxtLength = guildTxtLength + NS.CoreUI.Bar[num].DeadIcon:GetWidth()
-		end
-		--guildTxtLength = NS.CoreUI.Bar[num]:GetWidth() - guildTxtLength
 		NS.CoreUI.Bar[num].Guild:SetText(Guild)
-		--NS.CoreUI.Bar[num].Guild:SetWidth(guildTxtLength)
 		NS.CoreUI.Bar[num]:SetAlpha(NS.Options.Bars.AlphaDefault)
 	end
 end
@@ -390,8 +382,8 @@ function NS.UpdatePlayerLists(PID, timeUpdate, dead, newPlayerOnList)
 		reSortList = true
 
 		--: Alerts: KOS or 'New Detection'
-		if not issecretvalue(NS.PlayerActiveCache[PID].Name) then
-			if NS.KosList[NS.PlayerActiveCache[PID].Name] then
+		if not issecretvalue(NS.PlayerActiveCache[PID].fullName) then
+			if NS.KosList[NS.PlayerActiveCache[PID].fullName] then
 				NS.KOSAlert(PID)
 			else
 				--: New player detected

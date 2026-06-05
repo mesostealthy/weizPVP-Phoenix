@@ -20,7 +20,7 @@ local function AddNewPlayer(PID, name, realm)
 	-- Update PlayerCache info
 	NS.PlayerActiveCache[PID] = NS.PlayerActiveCache[PID] or {}
 	NS.PlayerActiveCache[PID].PID = PID
-	-- Name / Realmk
+	-- Name / Realm
 	NS.PlayerActiveCache[PID].Name = name
 	NS.PlayerActiveCache[PID].Realm = realm
 
@@ -41,6 +41,7 @@ local function AddNewPlayer(PID, name, realm)
 		NS.PlayerActiveCache[PID].RC = NS.PID_Cache[PID].RC
 		NS.PlayerActiveCache[PID].RID = NS.PID_Cache[PID].RID
 		NS.PlayerActiveCache[PID].RL = NS.PID_Cache[PID].RL
+		NS.PlayerActiveCache[PID].RR = NS.PID_Cache[PID].RR
 		NS.PlayerActiveCache[PID].RT = NS.PID_Cache[PID].RT
 		NS.PlayerActiveCache[PID].S = NS.PID_Cache[PID].S
 
@@ -49,6 +50,7 @@ local function AddNewPlayer(PID, name, realm)
 		NS.PlayerActiveCache[PID].NAME = NS.PID_Cache[PID].NAME
 		NS.PlayerActiveCache[PID].macrotext = NS.PID_Cache[PID].macrotext
 		NS.PlayerActiveCache[PID].displayGuild = NS.PID_Cache[PID].G or nil
+		NS.PlayerActiveCache[PID].fullName = NS.PID_Cache[PID].fullName or nil
 	end
 
 	-- has name?
@@ -115,6 +117,7 @@ function NS.UpdatePlayerActiveCache(PID, name, realm, dead)
 		end
 	end
 
+	-- : add player to near by
 	NS.AddPlayerDataToNearby(PID, newPlayerOnList)
 
 	-- : no longer estimated?
@@ -137,6 +140,7 @@ function NS.ValidatePlayerActiveCache(unit, PID)
 	-- : CLASS?
 	local className, classID = NS.PlayerActiveCache[PID].C, NS.PlayerActiveCache[PID].CID
 	if not NS.PlayerActiveCache[PID].C or not NS.PlayerActiveCache[PID].CID then
+		-- : update
 		className, classID = UnitClassBase(unit)
 		NS.PlayerActiveCache[PID].C = className
 		NS.PlayerActiveCache[PID].CID = classID
@@ -145,6 +149,7 @@ function NS.ValidatePlayerActiveCache(unit, PID)
 	-- : FACTION ID
 	local factionID = NS.PlayerActiveCache[PID].F
 	if not NS.PlayerActiveCache[PID].F then
+		-- : update
 		factionID = UnitFactionGroup(unit) == "Alliance" and 1 or 0
 		NS.PlayerActiveCache[PID].F = factionID
 	end
@@ -152,6 +157,7 @@ function NS.ValidatePlayerActiveCache(unit, PID)
 	-- : GUILD
 	local guildName, rankID = NS.PlayerActiveCache[PID].G, NS.PlayerActiveCache[PID].GRID
 	if not NS.PlayerActiveCache[PID].G or not NS.PlayerActiveCache[PID].GRID then
+		-- : update
 		guildName, _, rankID, _ = GetGuildInfo(unit)
 		NS.PlayerActiveCache[PID].G = guildName
 		NS.PlayerActiveCache[PID].GRID = rankID or 0
@@ -160,6 +166,7 @@ function NS.ValidatePlayerActiveCache(unit, PID)
 	-- : HONOR LEVEL
 	local honorLevel = NS.PlayerActiveCache[PID].HL
 	if not NS.PlayerActiveCache[PID].HL then
+		-- : update
 		honorLevel = UnitHonorLevel(unit)
 		NS.PlayerActiveCache[PID].HL = honorLevel
 	end
@@ -167,23 +174,34 @@ function NS.ValidatePlayerActiveCache(unit, PID)
 	-- : LEVEL
 	local level = NS.PlayerActiveCache[PID].L
 	if not NS.PlayerActiveCache[PID].L then
+		-- : update
 		level = UnitLevel(unit)
 		NS.PlayerActiveCache[PID].L = level
 		NS.PlayerActiveCache[PID].E = nil
 	end
 
-	-- : RACE
+	-- : RACE / RACE ID
 	local raceToken = nil
 	local raceName, raceID = NS.PlayerActiveCache[PID].RC, NS.PlayerActiveCache[PID].RID
 	if not NS.PlayerActiveCache[PID].RC or not NS.PlayerActiveCache[PID].RID then
+		-- : update
 		raceName, raceToken, raceID = UnitRace(unit)
 		NS.PlayerActiveCache[PID].RC = raceName
 		NS.PlayerActiveCache[PID].RID = raceID
 	end
 
+	-- : REALM RELATIONSHIP
+	local realmRelationship = NS.PlayerActiveCache[PID].RR
+	if not NS.PlayerActiveCache[PID].RR then
+		-- : save
+		realmRelationship = UnitRealmRelationship(unit)
+		NS.PlayerActiveCache[PID].RR = realmRelationship
+	end
+
 	-- : SEX
 	local sexID = NS.PlayerActiveCache[PID].S
 	if not NS.PlayerActiveCache[PID].S then
+		-- : update
 		sexID = UnitSex(unit)
 		NS.PlayerActiveCache[PID].S = sexID
 	end

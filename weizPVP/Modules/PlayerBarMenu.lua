@@ -20,10 +20,9 @@ function weizPVP_PlayerBarMenu_OnLoad()
 		return
 	end
 	-- NAME
-	local printedName =
-	WrapTextInColorCode(
-	gsub(NS.KOS.menuPlayerName, "-(.*)", ""),
-		select(4, GetClassColor(NS.PlayerDB[NS.KOS.menuPlayerName].C))
+	local printedName = WrapTextInColorCode(
+		gsub(NS.KOS.menuPlayerName, "-(.*)", ""),
+		select(4, GetClassColor(NS.KOS.menuPlayerClass))
 	)
 	local printedRealm = gsub(NS.KOS.menuPlayerName, "^(.*-)", "")
 	info.text = printedName .. " |cffbbbbbb-|r |cffdddddd" .. printedRealm .. "|r"
@@ -50,8 +49,9 @@ function NS.PlayerBarMenu_OnClick(bar)
 	if not bar then
 		return
 	end
-	if not issecretvalue(bar.NAME) then
+	if not issecretvalue(bar.NAME) and bar.Class then
 		menuPlayerID = bar.PID
+		NS.KOS.menuPlayerClass = bar.Class
 		NS.KOS.menuPlayerName = bar.NAME
 		ToggleDropDownMenu(1, nil, weizPVP_PlayerBarMenu, "cursor", 0, 0)
 	end

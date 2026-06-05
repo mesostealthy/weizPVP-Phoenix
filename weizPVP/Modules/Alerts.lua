@@ -167,7 +167,7 @@ function NS.NewPlayerAlert()
 end
 
 --> 🎯 KOS Alert <----------------------------------------------------
-function NS.KOSAlert(GUID)
+function NS.KOSAlert(PID)
 	-- Audio Alert
 	if NS.Options.KOS.AudioAlert then
 		PlayAudioAlert(SM:Fetch("sound", NS.Options.KOS.AudioAlertFile), true, NS.Options.KOS.SoundChannel)
@@ -180,7 +180,7 @@ function NS.KOSAlert(GUID)
 	if NS.Options.KOS.ChatAlert then
 		NS.PrintAddonMessage(
 			"|TInterface/Addons/weizPVP/Media/Icons/kos.tga::0|t " ..
-			NS.FormatPlayerNameAndRealm(NS.PlayerActiveCache[GUID].displayName, GUID) .. "|cff8fdaff detected!|r "
+			NS.FormatPlayerNameAndRealm(PID) .. "|cff8fdaff detected!|r "
 		)
 	end
 end

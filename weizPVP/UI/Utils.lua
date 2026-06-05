@@ -58,25 +58,17 @@ function NS.SetCoreFramePosition()
 end
 
 --> Format Player Name And Realm <-----------------------------------
-function NS.FormatPlayerNameAndRealm(playerName, GUID)
-	if (not playerName) or (not GUID) then
+function NS.FormatPlayerNameAndRealm(PID)
+	-- : sanity checks
+	if not PID or not NS.PID_Cache[PID] then
+		-- : unknown
 		return "???"
 	end
 
-	local charNameAndRealm
-
-	if NS.PlayerDB[playerName] then
-		charNameAndRealm = WrapTextInColorCode(gsub(playerName, "-(.*)", ""), select(4, GetClassColor(NS.PlayerDB[playerName].C)))
-		charNameAndRealm = charNameAndRealm .. " |cffbbbbbb-|r " .. NS.ColorsLUT["realm"]:WrapTextInColorCode(gsub(playerName, "^(.*-)", ""))
-	else
-		charNameAndRealm = WrapTextInColorCode(
-			gsub(playerName, "-(.*)", ""),
-			select(4, GetClassColor(NS.PlayerDB[NS.PlayerActiveCache[GUID].Name].C))
-		)
-		charNameAndRealm = charNameAndRealm ..
-			" |cffbbbbbb-|r " ..
-			NS.ColorsLUT["realm"]:WrapTextInColorCode(gsub(NS.PlayerActiveCache[GUID].Name, "^(.*-)", ""))
-	end
+	-- : finalize name / realm with colors
+	local _, _, _, classColor = GetClassColor(NS.PID_Cache[PID].C)
+	local charNameAndRealm = WrapTextInColorCode(NS.PID_Cache[PID].name, classColor)
+	charNameAndRealm = charNameAndRealm .. " |cffbbbbbb-|r " .. NS.ColorsLUT["realm"]:WrapTextInColorCode(NS.PID_Cache[PID].realm)
 	return charNameAndRealm
 end
 

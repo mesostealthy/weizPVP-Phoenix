@@ -30,7 +30,7 @@ local tempActiveList = {}
 local tempActiveDeadList = {}
 local tempInactiveList = {}
 local tempInactiveDeadList = {}
-function NS.SortNearbyList(newTargetPID)
+function NS.SortNearbyList()
 	--: ActiveList
 	for PID in pairs(NS.ActiveList) do
 		if NS.NearbyList[PID] then
@@ -88,22 +88,12 @@ function NS.SortNearbyList(newTargetPID)
 			return a.time < b.time
 		end
 	)
-	-- : put target first?
-	--[[if newTargetPID then
-		for PID in pairs(tempActiveList) do
-			if tempActiveList[PID].PID == newTargetPID then
-				tinsert(tempCurrentList, tempActiveList[PID])
-				tempActiveList[PID] = nil
-				break
-			end
-		end
-	end]]--
 	--: create PID list
-	for PID in pairs(tempActiveList) do
-		if NS.PlayerActiveCache[tempActiveList[PID].PID] then
-			if not issecretvalue(NS.PlayerActiveCache[tempActiveList[PID].PID].Name) then
-				if NS.KosList[NS.PlayerActiveCache[tempActiveList[PID].PID].Name] then
-					tinsert(tempCurrentList, tempActiveList[PID])
+	for PID,info in pairs(tempActiveList) do
+		if NS.PlayerActiveCache[info.PID] then
+			if not issecretvalue(NS.PlayerActiveCache[info.PID].fullName) then
+				if NS.KosList[NS.PlayerActiveCache[info.PID].fullName] then
+					tinsert(tempCurrentList, info)
 					tempActiveList[PID] = nil
 				end
 			end

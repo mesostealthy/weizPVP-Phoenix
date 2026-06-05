@@ -3,6 +3,7 @@
 -- 📌 Manages the name plates of players
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
+weizNS = NS
 
 -- : Libraries :------------------------
 local RAC = LibStub("LibRaces-1.0")
@@ -125,6 +126,7 @@ function NS.GetDataForUnit(unitToken)
 	data.level = UnitLevel(unitToken)
 	data.honorLevel = UnitHonorLevel(unitToken)
 	data.classToken, data.classID = UnitClassBase(unitToken)
+	data.realmRelationship = UnitRealmRelationship(unitToken)
 	data.raceName, data.raceToken, data.raceID = UnitRace(unitToken)
 	data.factionID = (UnitFactionGroup(unitToken) == FACTION_ALLIANCE) and 1 or 0
 	data.guildName, data.rankName, data.rankID, data.guildRealm = GetGuildInfo(unitToken)
@@ -387,6 +389,15 @@ function NS.RefreshUnitData(unitToken)
 			NS.PID_Cache[PID].guid = guid
 			NS.PID_Cache[PID].name = name
 			NS.PID_Cache[PID].realm = realm
+			if not realm or (data.realmRelationship == LE_REALM_RELATION_SAME) then
+				-- : same realm
+				NS.PID_Cache[PID].displayedName = name
+				NS.PID_Cache[PID].fullName = name .. "-" .. NS.PlayerRealm
+			else
+				-- : use realm
+				NS.PID_Cache[PID].displayedName = name .. "|cFFFF00CC*|r"
+				NS.PID_Cache[PID].fullName = name .. "-" .. realm
+			end
 
 			-- : save non-secret stuff
 			NS.PID_Cache[PID].lastNP = unitToken
@@ -400,6 +411,7 @@ function NS.RefreshUnitData(unitToken)
 			NS.PID_Cache[PID].HL = data.honorLevel
 			NS.PID_Cache[PID].L = data.level
 			NS.PID_Cache[PID].RID = data.raceID
+			NS.PID_Cache[PID].RR = data.realmRelationship
 			NS.PID_Cache[PID].S = data.sexID
 			NS.PID_Cache[PID].RL = NS.GetRoleForUnit(unitToken, data.classToken)
 			NS.PID_Cache[PID].isLeader = UnitLeadsAnyGroup(unitToken)
@@ -425,6 +437,7 @@ function NS.RefreshUnitData(unitToken)
 								-- : save GUID / NAME
 								NS.PID_Cache[PID].GUID = v.GUID
 								NS.PID_Cache[PID].NAME = v.NAME
+								NS.PID_Cache[PID].fullName = v.NAME
 
 								-- : no role yet?
 								if not NS.PID_Cache[PID].RL then
@@ -443,13 +456,18 @@ function NS.RefreshUnitData(unitToken)
 					NS.PID_Cache[PID].GUID = guid
 
 					-- no realm?
-					if not realm or (realm == "") or (UnitRealmRelationship(unitToken) == LE_REALM_RELATION_SAME) then
+					if not realm or (realm == "") or (data.realmRelationship == LE_REALM_RELATION_SAME) then
 						-- same realm
+						NS.PID_Cache[PID].displayedName = name
 						realm = NS.PlayerRealm
+					else
+						-- different realm
+						NS.PID_Cache[PID].displayedName = name .. "|cFFFF00CC*|r"
 					end
 
 					-- : save NAME
 					NS.PID_Cache[PID].NAME = name .. "-" .. realm
+					NS.PID_Cache[PID].fullName = name .. "-" .. realm
 				end
 			end
 
@@ -474,6 +492,7 @@ function NS.RefreshUnitData(unitToken)
 								-- : save GUID / NAME
 								NS.PID_Cache[PID].GUID = v.GUID
 								NS.PID_Cache[PID].NAME = player
+								NS.PID_Cache[PID].fullName = player
 
 								-- : no role yet?
 								if not NS.PID_Cache[PID].RL then
@@ -534,6 +553,7 @@ function NS.RefreshUnitData(unitToken)
 				-- : update player score cache
 				NS.PSC[GUID].GUID = GUID
 				NS.PSC[GUID].NAME = player
+				NS.PSC[GUID].fullName = player
 				NS.PSC[GUID].C = data.classToken
 				NS.PSC[GUID].CID = data.classID
 				NS.PSC[GUID].F = data.factionID
@@ -541,6 +561,7 @@ function NS.RefreshUnitData(unitToken)
 				NS.PSC[GUID].HL = data.honorLevel
 				NS.PSC[GUID].RC = data.raceName
 				NS.PSC[GUID].RL = NS.PlayerDB[player].RL
+				NS.PSC[GUID].RR = data.realmRelationship
 				NS.PSC[GUID].RT = data.raceToken
 				NS.PSC[GUID].S = data.sexID
 				NS.PSC[GUID].macrotext = NS.PID_Cache[PID].macrotext
@@ -795,6 +816,7 @@ function NS.UpdateBattlefieldScore()
 			-- : update player score cache
 			NS.PSC[info.guid].GUID = info.guid
 			NS.PSC[info.guid].NAME = player
+			NS.PSC[info.guid].fullName = player
 			NS.PSC[info.guid].C = info.classToken
 			NS.PSC[info.guid].CID = classID
 			NS.PSC[info.guid].F = info.faction
@@ -924,6 +946,7 @@ function NS.ValidatePSC()
 			if NS.PSC[GUID].realName then
 				-- : save name
 				NS.PSC[GUID].NAME = NS.PSC[GUID].realName
+				NS.PSC[GUID].fullName = NS.PSC[GUID].realName
 				NS.PSC[GUID].realName = nil
 			end
 
@@ -1037,6 +1060,12 @@ local function OnEvent(self, event, ...)
 	elseif event == "PLAYER_LEAVING_WORLD" then
 		-- : update specialization
 		NS.UpdateNamePlateSpecialization()
+
+		-- : leaving pvp?
+		if NS.Zone.instance == "pvp" then
+			-- : backup PID for debugging
+			NS.bPID_Cache = CopyTable(NS.PID_Cache)
+		end
 	-- : player logout?
 	elseif event == "PLAYER_LOGOUT" then
 		-- : save settings

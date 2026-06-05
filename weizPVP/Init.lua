@@ -4,7 +4,6 @@
 -- 📌 Loads player data.
 ---------------------------------------------------------------------------------------------------
 local ADDON_NAME, NS = ...
-weizNS = NS	-- TODO
 
 -- ⬆️ Upvalues
 local GetUnitName = GetUnitName

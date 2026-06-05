@@ -12,13 +12,7 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.1.0.1:
+v3.1.0.2:
 
-\- Dev Lab: Battleground -> Specialization Text (on Nameplates).
-
-\-- View tooltip over a player, then target them to see their Specialization Text on Nameplate.
-
-\- System redone to work with Blizzard's "secrets".
-
-\- Updated TOC version for Midnight v12.0.5.
+\-Add KOS working again for PVP content.
 
