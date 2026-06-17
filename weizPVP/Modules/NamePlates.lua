@@ -31,11 +31,22 @@ local GetPlayerInfoByGUID, IsInInstance, NotifyInspect = GetPlayerInfoByGUID, Is
 local GetNumBattlefieldScores, GetRaidRosterInfo = GetNumBattlefieldScores, GetRaidRosterInfo
 local gsub, select, strmatch, strsplit, wipe = gsub, select, strmatch, strsplit, wipe
 local issecretvalue = issecretvalue
-local tinsert = table.insert
+local blshift = bit.lshift
 local mfloor = math.floor
+local strfind = string.find
+local strsub = string.sub
+local tinsert = table.insert
 
 -- : local variables
 local weizFrame = nil
+
+-- : always dps classes
+local ALWAYS_DPS = {
+	HUNTER = true,
+	MAGE = true,
+	ROGUE = true,
+	WARLOCK = true,
+}
 
 -- : globals
 NS.NPC = {}
@@ -59,125 +70,102 @@ function NS.BattleGroundEnemies_GetPlayerDetails(unitToken)
 	local playerButton = BattleGroundEnemies:GetPlayerbuttonByUnitID(unitToken, "Enemies")
 	if playerButton and playerButton.PlayerDetails then
 		-- : return player details
-		return playerDetails
+		return playerButton.PlayerDetails
 	end
 
-	-- failed
+	-- : failed
 	return nil
 end
 
 --|> calculate PID
-function NS.CalculatePID(classID, raceID, factionID, sexID, honorLevel, rankID)
-	-- : missing class or honor level?
-	if not classID or not honorLevel then
-		-- : failed
-		return nil
-	end
+local function CalculatePID(classID, raceID, factionID, sexID, honorLevel, rankID)
+	-- : sanity checks
+	if not (classID and honorLevel) then return nil end
 
-	-- : missing faction?
-	if not factionID then
-		-- : force 0 for now
-		factionID = 0
-	end
+	-- : calculate PID
+	local PID = blshift(classID, 28)
+	          + blshift(raceID or 0, 20)
+	          + blshift(factionID or 0, 18)
+	          + blshift(sexID or 0, 16)
+	          + honorLevel
 
-	-- : missing race?
-	if not raceID then
-		-- : force 0 for now
-		raceID = 0
-	end
-
-	-- : missing sex?
-	if not sexID then
-		-- : force 0 for now
-		sexID = 0
-	end
-
-	-- : missing rank?
-	if not rankID then
-		-- : force 0 for now
-		rankID = 0
-	end
-
-	-- : calulate PID
-	local PID =
-		classID * 268435456 +		-- 0x10000000
-		raceID * 1048576 +		-- 0x00100000
-		factionID * 262144 +		-- 0x00040000
-		sexID * 65536 +			-- 0x00010000
-		honorLevel
+	-- : return PID
 	return PID
 end
 
 --|> get data for unit
-function NS.GetDataForUnit(unitToken)
+local function GetDataForUnit(unitToken)
 	-- : found nameplate?
-	if NS.NPC[unitToken] then
-		-- : found PID / cache?
-		local PID = NS.NPC[unitToken]
-		if PID and NS.PID_Cache[PID] then
-			-- : return data from cache
-			return NS.PID_Cache[PID]
+	local cachedPID = NS.NPC[unitToken]
+	if cachedPID then
+		-- : found cache?
+		local data = NS.PID_Cache[cachedPID]
+		if data then
+			-- : update levels
+			data.level = UnitLevel(unitToken)
+			data.honorLevel = UnitHonorLevel(unitToken)
+
+			-- : return data
+			return data
 		end
 	end
 
-	-- : calculate PID
-	local data = {}
-	data.sexID = UnitSex(unitToken)
-	data.level = UnitLevel(unitToken)
-	data.honorLevel = UnitHonorLevel(unitToken)
-	data.classToken, data.classID = UnitClassBase(unitToken)
-	data.realmRelationship = UnitRealmRelationship(unitToken)
-	data.raceName, data.raceToken, data.raceID = UnitRace(unitToken)
-	data.factionID = (UnitFactionGroup(unitToken) == FACTION_ALLIANCE) and 1 or 0
-	data.guildName, data.rankName, data.rankID, data.guildRealm = GetGuildInfo(unitToken)
-	data.PID = NS.CalculatePID(data.classID, data.raceID, data.factionID, data.sexID, data.honorLevel, data.rankID)
-	if not data.PID then
+	-- : sanity checks
+	local classToken, classID = UnitClassBase(unitToken)
+	local honorLevel = UnitHonorLevel(unitToken)
+	if not (classToken and classID and honorLevel) then
 		-- : failed
-		print("ERROR: Invalid Class or Honor Level?", data.classID, data.honorLevel)
 		return nil
 	end
+
+	-- : calculate PID
+	local sexID = UnitSex(unitToken)
+	local level = UnitLevel(unitToken)
+	local raceName, raceToken, raceID = UnitRace(unitToken)
+	local factionID = (UnitFactionGroup(unitToken) == FACTION_ALLIANCE) and 1 or 0
+	local guildName, rankName, rankID, guildRealm = GetGuildInfo(unitToken)
+	local PID = CalculatePID(classID, raceID, factionID, sexID, honorLevel, rankID)
+
+	-- : create data
+	local data = {
+		PID = PID,
+		classID = classID,
+		classToken = classToken,
+		factionID = factionID,
+		honorLevel = honorLevel,
+		guildName = guildName,
+		guildRealm = guildRealm,
+		level = level,
+		raceID = raceID,
+		raceName = raceName,
+		raceToken = raceToken,
+		rankID = rankID,
+		rankName = rankName,
+		sexID = sexID,
+	}
+
+	-- : extract more data
+	data.level = UnitLevel(unitToken)
+	data.realmRelationship = UnitRealmRelationship(unitToken)
 
 	-- : return data
 	return data
 end
 
 --|> is valid unit token
-function NS.IsValidUnitToken(unitToken)
-	-- : exists?
-	if not UnitExists(unitToken) then
-		-- : failed
-		return nil
-	end
-
-	-- : not player?
-	if not UnitIsPlayer(unitToken) then
-		-- : failed
-		return nil
-	end
-
-	-- : not an enemy to player?
-	if not (UnitCanAttack("player", unitToken) or UnitIsEnemy("player", unitToken)) then
-		-- : failed
-		return nil
-	end
-
-	-- : mind controlled?
-	if UnitIsPossessed(unitToken) then
-		-- : same faction as player?
-		if UnitFactionGroup(unitToken) == NS.Player.Faction then
-			-- : failed
-			return nil
-		end
-	end
-
-	-- : success
-	return true
+local function IsValidUnitToken(unitToken)
+	-- : enemy?
+	return (
+		UnitExists(unitToken) 
+		and UnitIsPlayer(unitToken) 
+		and (UnitCanAttack("player", unitToken) or UnitIsEnemy("player", unitToken))
+	) or nil
 end
 
 --|> get pid by unit
 function NS.GetPIDForUnit(unitToken)
 	-- : valid unitToken?
-	if not NS.IsValidUnitToken(unitToken) then
+	if not IsValidUnitToken(unitToken) then
 		-- : failed
 		return nil
 	end
@@ -206,92 +194,73 @@ function NS.GetPIDForUnit(unitToken)
 end
 
 --|> get mouseover specialziation
-function NS.GetMouseoverSpecialization(unitToken)
+local function GetMouseoverSpecialization(unitToken)
 	-- : has mouse over?
 	local specialization = nil
 	if UnitExists(unitToken) then
-		-- has guild?
+		-- : has guild?
 		local guildName, rankName, rankID, guildRealm = GetGuildInfo(unitToken)
 		if guildName then
-			-- save specialization
+			-- : save specialization
 			specialization = GameTooltipTextLeft4:GetText()
 		else
-			-- check numlines
+			-- : check numlines
 			local numLines = GameTooltip:NumLines()
 			if numLines == 4 or numLines == 5 then
-				-- save specialization
+				-- : save specialization
 				specialization = GameTooltipTextLeft3:GetText()
 			elseif numLines == 6 then
-				-- save specialization
+				-- : save specialization
 				specialization = GameTooltipTextLeft4:GetText()
 			end
 		end
 	end
 
-	-- return specialization
+	-- : return specialization
 	return specialization
 end
 
 --|> get role for unit
-function NS.GetRoleForUnit(unitToken, classToken)
-	-- : hunter?
-	local role = nil
-	if classToken == "HUNTER" then
-		-- : always damager
-		role = "DAMAGER"
-	-- : mage?
-	elseif classToken == "MAGE" then
-		-- : always damager
-		role = "DAMAGER"
-	-- : monk?
-	elseif classToken == "MONK" then
-		-- : get power type
-		local powerType = UnitPowerType(unitToken)
-		if powerType == 0 then
-			role = "HEALER"
-		else
-			-- : get power max
-			local powerMax = UnitPowerMax(unitToken, 12)
-			if powerMax == 4 then
-				role = "TANK"
-			else
-				role = "DAMAGER"
-			end
-		end
-	-- : priest?
-	elseif classToken == "PRIEST" then
-		-- : get power type
-		local powerType = UnitPowerType(unitToken)
-		if powerType == 13 then
-			role = "DAMAGER"
-		else
-			role = "HEALER"
-		end
-	-- : rogue?
-	elseif classToken == "ROGUE" then
-		-- : always damager
-		role = "DAMAGER"
-	-- : shaman?
-	elseif classToken == "SHAMAN" then
-		-- : get power type
-		local powerType = UnitPowerType(unitToken)
-		if powerType == 0 then
-			role = "HEALER"
-		else
-			role = "DAMAGER"
-		end
-	-- : warlock?
-	elseif classToken == "WARLOCK" then
-		-- : always damager
-		role = "DAMAGER"
+local function GetRoleForUnit(unitToken, classToken)
+	-- : only dps?
+	if ALWAYS_DPS[classToken] then
+		return "DAMAGER"
 	end
 
-	-- : return role
-	return role
+	-- : monk?
+	if classToken == "MONK" then
+		-- : has mana?
+		if UnitPowerType(unitToken) == 0 then
+			return "HEALER"
+		-- : tanks always stuck with 4
+		elseif UnitPowerMax(unitToken, 12) == 4 then
+			return "TANK"
+		end
+		return "DAMAGER"
+	-- : priest?
+	elseif classToken == "PRIEST" then
+		return (UnitPowerType(unitToken) == 13) and "DAMAGER" or "HEALER"
+	-- : shaman?
+	elseif classToken == "SHAMAN" then
+		return (UnitPowerType(unitToken) == 0) and "HEALER" or "DAMAGER"
+	end
+
+	-- : try battleground enemies
+	local playerDetails = NS.BattleGroundEnemies_GetPlayerDetails(unitToken)
+	if playerDetails and playerDetails.PlayerRole then
+		-- : not secret?
+		if not issecretvalue(playerDetails.PlayerRole) then
+			-- : found
+			return playerDetails.PlayerRole
+		end
+	end
+
+	-- : failed
+	return nil
 end
 
 --|> refresh active player data
-function NS.RefreshActivePlayerData(unitToken)
+local function RefreshActivePlayerData(unitToken)
 	-- : unit still exists?
 	if UnitExists(unitToken) then
 		-- : found PID / cache?
@@ -324,273 +293,251 @@ function NS.RefreshActivePlayerData(unitToken)
 end
 
 --|> update specialization
-function NS.UpdateNamePlateSpecialization(namePlate, unitToken)
-	-- : specialization text no tenabled?
+local function UpdateNamePlateSpecialization(namePlate, unitToken)
+	-- : specialization text not enabled?
 	if not NS.Options.BattleGrounds.SpecText then
 		-- : finished
 		return
 	end
 
-	-- : sanity check
-	if namePlate and unitToken then
-		-- : currently targeted?
-		if UnitIsUnit("target", unitToken) then
-			-- : has specialization?
-			local PID = NS.NPC[unitToken]
-			if PID and NS.PID_Cache[PID].specialization then
-				-- : set text
-				weizFrame.Text:SetText(NS.PID_Cache[PID].specialization)
-				weizFrame:SetPoint("CENTER", namePlate, "CENTER", 0, -15)
-				weizFrame:Show()
-				return
-			end
+	-- : sanity checks
+	if namePlate and unitToken and UnitIsUnit("target", unitToken) then
+		-- : found specialization?
+		local pid = NS.NPC[unitToken]
+		local cachedData = pid and NS.PID_Cache[pid]
+		local specialization = cachedData and cachedData.specialization
+		if specialization then
+			-- : show
+			local textWidget = weizFrame.Text
+			textWidget:SetText(specialization)
+			weizFrame:SetPoint("CENTER", namePlate, "CENTER", 0, -15)
+			weizFrame:Show()
+			return
 		end
 	end
 
-	-- : hide
-	weizFrame.Text:SetText("")
-	weizFrame:ClearAllPoints()
-	weizFrame:Hide()
+	-- : shown?
+	if weizFrame:IsShown() then
+		-- : hide
+		weizFrame:Hide()
+		weizFrame:ClearAllPoints()
+	end
+end
+
+--|> get honor level range
+local function GetHonorLevelRange(honorLevel)
+	-- : larger ranges needed?
+	if honorLevel > 50 then return 10 + mfloor(honorLevel / 50) end
+	if honorLevel > 5 then return mfloor(honorLevel / 5) end
+
+	-- : smallest range
+	return 1
 end
 
 --|> refresh unit data
-function NS.RefreshUnitData(unitToken)
-	-- : get data for unit
-	local data = NS.GetDataForUnit(unitToken)
-	if data and data.PID then
-		-- : save PID
-		local PID = data.PID
-		NS.NPC[unitToken] = PID
+local function RefreshUnitData(unitToken)
+	-- : found unit data?
+	local data = GetDataForUnit(unitToken)
+	if not (data and data.PID) then return end
 
-		-- : already cached?
-		if NS.PID_Cache[PID] then
-			-- : update pid cache
-			local currentTime = time()
-			NS.PID_Cache[PID].HL = honorLevel
-			NS.PID_Cache[PID].L = level
-			NS.PID_Cache[PID].T = currentTime
-			NS.PID_Cache[PID].isLeader = UnitLeadsAnyGroup(unitToken)
+	-- : already cached?
+	local PID = data.PID
+	NS.NPC[unitToken] = PID
+	local currentTime = time()
+	local cacheEntry = NS.PID_Cache[PID]
+	if cacheEntry then
+		-- : update
+		cacheEntry.HL = data.honorLevel
+		cacheEntry.L = data.level
+		cacheEntry.T = currentTime
+		cacheEntry.isLeader = UnitLeadsAnyGroup(unitToken)
 
-			-- : has NAME?
-			if NS.PID_Cache[PID].NAME then
-				-- : update database
-				local NAME = NS.PID_Cache[PID].NAME
-				NS.PlayerDB[NAME].HL = honorLevel
-				NS.PlayerDB[NAME].L = level
-				NS.PlayerDB[NAME].T = currentTime
-			end
-		else
-			-- : initialize
-			NS.PID_Cache[PID] = {}
-
-			-- : save potentially secret stuff
-			local guid = UnitGUID(unitToken)
-			local name, realm = UnitName(unitToken)
-			NS.PID_Cache[PID].guid = guid
-			NS.PID_Cache[PID].name = name
-			NS.PID_Cache[PID].realm = realm
-			if not realm or (data.realmRelationship == LE_REALM_RELATION_SAME) then
-				-- : same realm
-				NS.PID_Cache[PID].displayedName = name
-				NS.PID_Cache[PID].fullName = name .. "-" .. NS.PlayerRealm
-			else
-				-- : use realm
-				NS.PID_Cache[PID].displayedName = name .. "|cFFFF00CC*|r"
-				NS.PID_Cache[PID].fullName = name .. "-" .. realm
-			end
-
-			-- : save non-secret stuff
-			NS.PID_Cache[PID].lastNP = unitToken
-			NS.PID_Cache[PID].C = data.classToken
-			NS.PID_Cache[PID].CID = data.classID
-			NS.PID_Cache[PID].FID = data.factionID
-			NS.PID_Cache[PID].G = data.guildName
-			NS.PID_Cache[PID].GR = data.rankName
-			NS.PID_Cache[PID].GRID = data.rankID
-			NS.PID_Cache[PID].GRN = data.guildRealm
-			NS.PID_Cache[PID].HL = data.honorLevel
-			NS.PID_Cache[PID].L = data.level
-			NS.PID_Cache[PID].RID = data.raceID
-			NS.PID_Cache[PID].RR = data.realmRelationship
-			NS.PID_Cache[PID].S = data.sexID
-			NS.PID_Cache[PID].RL = NS.GetRoleForUnit(unitToken, data.classToken)
-			NS.PID_Cache[PID].isLeader = UnitLeadsAnyGroup(unitToken)
-
-			-- : check match state
-			if NS.MatchState == Enum.PvPMatchState.Engaged then
-				-- : search PSC
-				for k,v in pairs(NS.PSC) do
-					-- : matches stuff?
-					if v.CID == data.classID and v.RT == data.raceToken and v.S == data.sexID and v.HL then
-						-- : calculate range
-						local range = 1
-						if v.HL > 50 then
-							range = 10 + mfloor(v.HL / 50)
-						elseif v.HL > 5 then
-							range = mfloor(v.HL / 5)
-						end
-
-						-- : honor level within range?
-						if (data.honorLevel >= v.HL) and ((data.honorLevel - v.HL) < range) then
-							-- : found player by guid?
-							if GetScoreInfoByPlayerGuid(v.GUID) then
-								-- : save GUID / NAME
-								NS.PID_Cache[PID].GUID = v.GUID
-								NS.PID_Cache[PID].NAME = v.NAME
-								NS.PID_Cache[PID].fullName = v.NAME
-
-								-- : no role yet?
-								if not NS.PID_Cache[PID].RL then
-									-- : try using role from database
-									NS.PID_Cache[PID].RL = v.RL
-								end
-								break
-							end
-						end
-					end
-				end
-			else
-				-- : non secret?
-				if not issecretvalue(guid) then
-					-- : save GUID
-					NS.PID_Cache[PID].GUID = guid
-
-					-- no realm?
-					if not realm or (realm == "") or (data.realmRelationship == LE_REALM_RELATION_SAME) then
-						-- same realm
-						NS.PID_Cache[PID].displayedName = name
-						realm = NS.PlayerRealm
-					else
-						-- different realm
-						NS.PID_Cache[PID].displayedName = name .. "|cFFFF00CC*|r"
-					end
-
-					-- : save NAME
-					NS.PID_Cache[PID].NAME = name .. "-" .. realm
-					NS.PID_Cache[PID].fullName = name .. "-" .. realm
-				end
-			end
-
-			-- : not found yet?
-			if not NS.PID_Cache[PID].GUID then
-				-- : search player database
-				for player,v in pairs(NS.PlayerDB) do
-					-- : matches stuff?
-					if v.CID == data.classID and v.RID == data.raceID and v.S == data.sexID and v.HL then
-						-- : calculate range
-						local range = 1
-						if v.HL > 50 then
-							range = 10 + mfloor(v.HL / 50)
-						elseif v.HL > 5 then
-							range = mfloor(v.HL / 5)
-						end
-
-						-- : honor level within range?
-						if (data.honorLevel >= v.HL) and ((data.honorLevel - v.HL) < range) then
-							-- : found player by guid?
-							if GetScoreInfoByPlayerGuid(v.GUID) then
-								-- : save GUID / NAME
-								NS.PID_Cache[PID].GUID = v.GUID
-								NS.PID_Cache[PID].NAME = player
-								NS.PID_Cache[PID].fullName = player
-
-								-- : no role yet?
-								if not NS.PID_Cache[PID].RL then
-									-- : try using role from database
-									NS.PID_Cache[PID].RL = v.RL
-								end
-								break
-							end
-						end
-					end
-				end
-			end
-
-			-- : finally found?
-			if NS.PID_Cache[PID].GUID then
-				-- : save macrotext
-				local GUID = NS.PID_Cache[PID].GUID
-				local player = NS.PID_Cache[PID].NAME
-				NS.PID_Cache[PID].macrotext = "/target " .. gsub(player, "-(.*)", "")
-
-				-- : new player found?
-				if not NS.PlayerDB[player] then
-					-- : initialize
-					NS.PlayerDB[player] = {}
-				end
-
-				-- : add / update database
-				local currentTime = time()
-				NS.PlayerDB[player].GUID = NS.PID_Cache[PID].GUID
-				NS.PlayerDB[player].C = data.classToken
-				NS.PlayerDB[player].CID = data.classID
-				NS.PlayerDB[player].F = data.factionID
-				NS.PlayerDB[player].FID = data.factionID
-				NS.PlayerDB[player].G = data.guildName
-				NS.PlayerDB[player].GR = data.rankName
-				NS.PlayerDB[player].GRID = data.rankID
-				NS.PlayerDB[player].GRN = data.guildRealm
-				NS.PlayerDB[player].HL = data.honorLevel
-				NS.PlayerDB[player].L = data.level
-				NS.PlayerDB[player].RC = data.raceName
-				NS.PlayerDB[player].RID = data.raceID
-				NS.PlayerDB[player].RT = data.raceToken
-				NS.PlayerDB[player].S = data.sexID
-				NS.PlayerDB[player].T = currentTime
-
-				-- : no role?
-				if not NS.PlayerDB[player].RL then
-					-- : try using role from pid cache
-					NS.PlayerDB[player].RL = NS.PID_Cache[PID].RL
-				end
-
-				-- : new player score cache?
-				if not NS.PSC[GUID] then
-					-- : initialize
-					NS.PSC[GUID] = {}
-				end
-
-				-- : update player score cache
-				NS.PSC[GUID].GUID = GUID
-				NS.PSC[GUID].NAME = player
-				NS.PSC[GUID].fullName = player
-				NS.PSC[GUID].C = data.classToken
-				NS.PSC[GUID].CID = data.classID
-				NS.PSC[GUID].F = data.factionID
-				NS.PSC[GUID].FID = data.factionID
-				NS.PSC[GUID].HL = data.honorLevel
-				NS.PSC[GUID].RC = data.raceName
-				NS.PSC[GUID].RL = NS.PlayerDB[player].RL
-				NS.PSC[GUID].RR = data.realmRelationship
-				NS.PSC[GUID].RT = data.raceToken
-				NS.PSC[GUID].S = data.sexID
-				NS.PSC[GUID].macrotext = NS.PID_Cache[PID].macrotext
-				NS.PSC[GUID].T = currentTime
+		-- : found NAME?
+		local NAME = cacheEntry.NAME
+		if NAME then
+			-- : found database player?
+			local dbEntry = NS.PlayerDB[NAME]
+			if dbEntry then
+				-- : update
+				dbEntry.HL = data.honorLevel
+				dbEntry.L = data.level
+				dbEntry.T = currentTime
 			end
 		end
 
 		-- : refresh active player data
-		NS.RefreshActivePlayerData(unitToken)
-
-		-- : return PID
+		RefreshActivePlayerData(unitToken)
 		return PID
 	end
 
-	-- : failed
-	return nil
+	-- : localize cache
+	cacheEntry = {}
+	NS.PID_Cache[PID] = cacheEntry
+	local guid = UnitGUID(unitToken)
+	local name, realm = UnitName(unitToken)
+	cacheEntry.guid = guid
+	cacheEntry.name = name
+	cacheEntry.realm = realm
+
+	-- : same realm as player?
+	if data.realmRelationship == LE_REALM_RELATION_SAME then
+		-- : update names / realm
+		cacheEntry.displayedName = name
+		cacheEntry.fullName = name .. "-" .. NS.PlayerRealm
+		realm = NS.PlayerRealm
+	else
+		-- : update names
+		cacheEntry.displayedName = name .. "|cFFFF00CC*|r"
+		cacheEntry.fullName = name .. "-" .. realm
+	end
+
+	-- : update
+	cacheEntry.lastNP = unitToken
+	cacheEntry.C = data.classToken
+	cacheEntry.CID = data.classID
+	cacheEntry.FID = data.factionID
+	cacheEntry.G = data.guildName
+	cacheEntry.GR = data.rankName
+	cacheEntry.GRID = data.rankID
+	cacheEntry.GRN = data.guildRealm
+	cacheEntry.HL = data.honorLevel
+	cacheEntry.L = data.level
+	cacheEntry.RID = data.raceID
+	cacheEntry.RR = data.realmRelationship
+	cacheEntry.S = data.sexID
+	local role = GetRoleForUnit(unitToken, data.classToken)
+	cacheEntry.RL = role
+	cacheEntry.isLeader = UnitLeadsAnyGroup(unitToken)
+
+	-- : match engaged?
+	if NS.MatchState == Enum.PvPMatchState.Engaged then
+		-- : process all
+		local cid, rt, s, hl = data.classID, data.raceToken, data.sexID, data.honorLevel
+		for _, v in pairs(NS.PSC) do
+			-- : found matchable data?
+			if v.CID == cid and v.RT == rt and v.S == s and v.HL then
+				-- : get honor level range
+				local diff = hl - v.HL
+				if diff >= 0 and diff < GetHonorLevelRange(v.HL) then
+					-- : get score info by player guid
+					local vGUID = v.GUID
+					if GetScoreInfoByPlayerGuid(vGUID) then
+						-- : update
+						cacheEntry.GUID = vGUID
+						cacheEntry.NAME = v.NAME
+						cacheEntry.fullName = v.NAME
+						if not role then cacheEntry.RL = v.RL end
+						break
+					end
+				end
+			end
+		end
+	else
+		-- : found non-secret guid?
+		if not issecretvalue(guid) then
+			-- : update
+			cacheEntry.GUID = guid
+			local fullName = name .. "-" .. realm
+			cacheEntry.NAME = fullName
+			cacheEntry.fullName = fullName
+		end
+	end
+
+	-- : guid not found yet?
+	if not cacheEntry.GUID then
+		-- : process all
+		local cid, rid, s, hl = data.classID, data.raceID, data.sexID, data.honorLevel
+		for player, v in pairs(NS.PlayerDB) do
+			-- : found matchable data?
+			if v.CID == cid and v.RID == rid and v.S == s and v.HL then
+				-- : get honor level range
+				local diff = hl - v.HL
+				if diff >= 0 and diff < GetHonorLevelRange(v.HL) then
+					-- : get score info by player guid
+					local vGUID = v.GUID
+					if GetScoreInfoByPlayerGuid(vGUID) then
+						-- : update
+						cacheEntry.GUID = vGUID
+						cacheEntry.NAME = player
+						cacheEntry.fullName = player
+						if not role then cacheEntry.RL = v.RL end
+						break
+					end
+				end
+			end
+		end
+	end
+
+	-- : found real GUID?
+	local targetGUID = cacheEntry.GUID
+	if targetGUID then
+		-- : build macrotext
+		local player = cacheEntry.NAME
+		local hyphPos = strfind(player, "-")
+		local baseName = hyphPos and strsub(player, 1, hyphPos - 1) or player
+		cacheEntry.macrotext = "/target " .. baseName
+
+		-- : localize player database entry
+		local dbEntry = NS.PlayerDB[player] or {}
+		NS.PlayerDB[player] = dbEntry
+
+		-- : update player databsae
+		dbEntry.GUID = targetGUID
+		dbEntry.C = data.classToken
+		dbEntry.CID = data.classID
+		dbEntry.F = data.factionID
+		dbEntry.FID = data.factionID
+		dbEntry.G = data.guildName
+		dbEntry.GR = data.rankName
+		dbEntry.GRID = data.rankID
+		dbEntry.GRN = data.guildRealm
+		dbEntry.HL = data.honorLevel
+		dbEntry.L = data.level
+		dbEntry.RC = data.raceName
+		dbEntry.RID = data.raceID
+		dbEntry.RT = data.raceToken
+		dbEntry.S = data.sexID
+		dbEntry.T = currentTime
+		if not dbEntry.RL then dbEntry.RL = cacheEntry.RL end
+
+		-- : localize player score cache entry
+		local pscEntry = NS.PSC[targetGUID] or {}
+		NS.PSC[targetGUID] = pscEntry
+
+		-- : update player score cache entry
+		pscEntry.GUID = targetGUID
+		pscEntry.NAME = player
+		pscEntry.fullName = player
+		pscEntry.C = data.classToken
+		pscEntry.CID = data.classID
+		pscEntry.F = data.factionID
+		pscEntry.FID = data.factionID
+		pscEntry.HL = data.honorLevel
+		pscEntry.RC = data.raceName
+		pscEntry.RL = dbEntry.RL
+		pscEntry.RR = data.realmRelationship
+		pscEntry.RT = data.raceToken
+		pscEntry.S = data.sexID
+		pscEntry.macrotext = cacheEntry.macrotext
+		pscEntry.T = currentTime
+	end
+
+	-- : refresh active player data
+	RefreshActivePlayerData(unitToken)
+	return PID
 end
 
 --|> name plate unit added
-function NS.NamePlateUnitAdded(unitToken)
+local function NamePlateUnitAdded(unitToken)
 	-- : valid unit?
-	if NS.IsValidUnitToken(unitToken) then
+	if IsValidUnitToken(unitToken) then
 		-- : unit refreshed?
-		NS.RefreshUnitData(unitToken)
+		RefreshUnitData(unitToken)
 	end
 end
 
 --|> name plate unit removed
-function NS.NamePlateUnitRemoved(unitToken)
+local function NamePlateUnitRemoved(unitToken)
 	-- : found unit?
 	if NS.NPC[unitToken] then
 		-- : delete unit
@@ -601,7 +548,7 @@ end
 --|> update name plate unit
 function NS.UpdateNamePlateUnit(unitToken)
 	-- : not valid unit?
-	if not NS.IsValidUnitToken(unitToken) then
+	if not IsValidUnitToken(unitToken) then
 		-- : finished
 		return
 	end
@@ -628,12 +575,12 @@ function NS.UpdateNamePlateUnit(unitToken)
 		unitToken = namePlate:GetUnit()
 		if unitToken then
 			-- : refresh unit data
-			NS.RefreshUnitData(unitToken)
+			RefreshUnitData(unitToken)
 
 			-- : found?
 			if NS.NPC[unitToken] then
 				-- : refresh active player data
-				NS.RefreshActivePlayerData(unitToken)
+				RefreshActivePlayerData(unitToken)
 			end
 		end
 	end
@@ -644,21 +591,18 @@ function NS.RefreshAllNamePlates()
 	-- : get all nameplates
 	local nameplates = GetNamePlates()
 	for _, namePlate in ipairs(nameplates) do
-		-- : get unit
+		-- : found valid unit token?
 		local unitToken = namePlate:GetUnit()
-		if unitToken then
-			-- : valid unit?
-			if NS.IsValidUnitToken(unitToken) then
-				-- : refresh unit data
-				NS.RefreshUnitData(unitToken)
-			end
+		if unitToken and IsValidUnitToken(unitToken) then
+			-- : refresh unit data
+			RefreshUnitData(unitToken)
 		end
 	end
 end
 
 --|> update group roles
 local checkMainAssist = false
-function NS.UpdateGroupRoles()
+local function UpdateGroupRoles()
 	-- : in combat lockdown?
 	if InCombatLockdown() then
 		-- : finished
@@ -715,39 +659,39 @@ function NS.UpdateGroupRoles()
 end
 
 --|> update battlefield score
-function NS.UpdateBattlefieldScore()
-	-- : check match state
-	NS.MatchState = GetActiveMatchState()
-	if NS.MatchState <= Enum.PvPMatchState.Engaged then
-		-- : get player info
+local function UpdateBattlefieldScore()
+	-- : not engaged yet?
+	local matchState = GetActiveMatchState()
+	NS.MatchState = matchState
+	if matchState <= Enum.PvPMatchState.Engaged then
+		-- : get score info by player guid
 		local playerInfo = GetScoreInfoByPlayerGuid(NS.Player.GUID)
 		if playerInfo then
 			-- : process all
-			for i=1, GetNumBattlefieldScores() do
-				-- : get score info
+			local numScores = GetNumBattlefieldScores()
+			local enemyCache = NS.EnemyPlayerCache
+			local playerFaction = playerInfo.faction
+			for i = 1, numScores do
+				-- : found enemy score info?
 				local info = GetScoreInfo(i)
-				if info and info.name and not issecretvalue(info.name) then
-					-- : enemy team faction?
-					if playerInfo.faction ~= info.faction then
-						-- : add to enemy player cache
-						NS.EnemyPlayerCache[info.name] = info
-					end
+				if info and info.name and (playerFaction ~= info.faction) and not issecretvalue(info.name) then
+					-- : update
+					enemyCache[info.name] = info
 				end
 			end
 		end
-
-		-- : finished
 		return
 	end
 
 	-- : process all
 	local count, maxlevels = 0, 0
-	for i=1, MAX_RAID_MEMBERS do
-		-- get name / rank
-		local name, rank, _, level = GetRaidRosterInfo(i)
+	local targetMaxLevel = NS.MaxLevel
+	for i = 1, MAX_RAID_MEMBERS do
+		-- : get raid roster info
+		local name, _, _, level = GetRaidRosterInfo(i)
 		if name and level then
 			-- : max level?
-			if level == NS.MaxLevel then
+			if level == targetMaxLevel then
 				-- : increase
 				maxlevels = maxlevels + 1
 			end
@@ -757,207 +701,196 @@ function NS.UpdateBattlefieldScore()
 		end
 	end
 
-	-- : max level pvp?
-	local maxLevelPvP = false
-	if (count > 0) and (count == maxlevels) then
-		maxLevelPvP = true
-	end
-
-	-- : player is mercenary?
+	-- : max level / mercenary?
+	local maxLevelPvP = (count > 0) and (count == maxlevels)
 	local playerFaction = NS.Player.FactionID
 	if UnitIsMercenary("player") then
-		-- : alliance?
-		if playerFaction == 1 then
-			-- : horde for now
-			playerFaction = 0
-		else
-			-- : alliance for now
-			playerFaction = 1
-		end
+		-- : swap faction
+		playerFaction = (playerFaction == 1) and 0 or 1
 	end
 
 	-- : process all
+	local psc = NS.PSC
 	local currentTime = time()
-	for i=1, GetNumBattlefieldScores() do
-		-- : get score info
+	local numScores = GetNumBattlefieldScores()
+	local playerDB = NS.PlayerDB
+	local currentMapID = NS.mapID
+	local playerRealm = NS.PlayerRealm
+	local GetClassIDFromName = NS.GetClassIDFromName
+	local GetRoleFromSpecialization = NS.GetRoleFromSpecialization
+	local GetRaceInfoFromName = NS.GetRaceInfoFromName
+	local GetRaceToken = RAC and RAC.GetRaceToken
+	for i = 1, numScores do
+		-- : found score info?
 		local info = GetScoreInfo(i)
 		if info and info.name and info.guid and (info.faction ~= playerFaction) then
-			-- : calculate stuff
+			-- : found role?
+			local guid = info.guid
 			local role = "UNKNOWN"
-			local sexID = select(5, GetPlayerInfoByGUID(info.guid))
-			local classID = NS.GetClassIDFromName(info.classToken)
-			local raceToken, raceName = RAC:GetRaceToken(info.raceName) or nil
+			local roleAssigned = info.roleAssigned
 			if info.talentSpec then
-				role = NS.GetRoleFromSpecialization(info.talentSpec)
-			elseif info.roleAssigned == 2 then
+				role = GetRoleFromSpecialization(info.talentSpec)
+			elseif roleAssigned == 2 then
 				role = "TANK"
-			elseif info.roleAssigned == 4 then
+			elseif roleAssigned == 4 then
 				role = "HEALER"
-			elseif info.roleAssigned == 8 then
+			elseif roleAssigned == 8 then
 				role = "DAMAGER"
 			end
 
-			-- : always use full name
+			-- : finalize player
 			local player = info.name
-			if not strmatch(player, "-") then
-				-- : has honor level?
-				if info.honorLevel > 0 then
-					-- : use player realm
-					player = player .. "-" .. NS.PlayerRealm
-				end
+			if info.honorLevel > 0 and not strmatch(player, "-") then
+				-- : add player realm
+				player = player .. "-" .. playerRealm
 			end
 
-			-- : new player score cache?
-			if not NS.PSC[info.guid] then
+			-- : found race token?
+			local sexID = select(5, GetPlayerInfoByGUID(guid))
+			local classID = GetClassIDFromName(info.classToken)
+			local raceToken, raceName = RAC:GetRaceToken(info.raceName)
+
+			-- : localize
+			local dbEntry = playerDB[player]
+			if not dbEntry then
 				-- : initialize
-				NS.PSC[info.guid] = {}
+				dbEntry = {}
+				playerDB[player] = dbEntry
 			end
 
-			-- : update player score cache
-			NS.PSC[info.guid].GUID = info.guid
-			NS.PSC[info.guid].NAME = player
-			NS.PSC[info.guid].fullName = player
-			NS.PSC[info.guid].C = info.classToken
-			NS.PSC[info.guid].CID = classID
-			NS.PSC[info.guid].F = info.faction
-			NS.PSC[info.guid].HL = info.honorLevel
-			NS.PSC[info.guid].MID = NS.mapID
-			NS.PSC[info.guid].RC = raceName
-			NS.PSC[info.guid].RL = role
-			NS.PSC[info.guid].ROLE = info.roleAssigned
-			NS.PSC[info.guid].RT = raceToken
-			NS.PSC[info.guid].S = sexID
-			NS.PSC[info.guid].SPEC = info.talentSpec
-			NS.PSC[info.guid].T = currentTime
+			-- : update player database entry
+			dbEntry.GUID = guid
+			dbEntry.C = info.classToken
+			dbEntry.CID = classID
+			dbEntry.HL = info.honorLevel
+			dbEntry.MID = currentMapID
+			dbEntry.RC = raceName
+			dbEntry.RL = role
+			dbEntry.ROLE = roleAssigned
+			dbEntry.RT = raceToken
+			dbEntry.S = sexID
+			dbEntry.SPEC = info.talentSpec
+			dbEntry.T = currentTime
 
-			-- : new player?
-			if not NS.PlayerDB[player] then
-				-- : create
-				NS.PlayerDB[player] = {}
+			-- : localize
+			local pscEntry = psc[guid]
+			if not pscEntry then
+				-- : initialize
+				pscEntry = {}
+				psc[guid] = pscEntry
 			end
 
-			-- : save / update base info
-			NS.PlayerDB[player].GUID = info.guid
-			NS.PlayerDB[player].C = info.classToken
-			NS.PlayerDB[player].CID = classID
-			NS.PlayerDB[player].HL = info.honorLevel
-			NS.PlayerDB[player].MID = NS.mapID
-			NS.PlayerDB[player].RC = raceName
-			NS.PlayerDB[player].RL = role
-			NS.PlayerDB[player].ROLE = info.roleAssigned
-			NS.PlayerDB[player].RT = raceToken
-			NS.PlayerDB[player].S = sexID
-			NS.PlayerDB[player].SPEC = info.talentSpec
-			NS.PlayerDB[player].T = currentTime
+			-- : update player score cache entry
+			pscEntry.GUID = guid
+			pscEntry.NAME = player
+			pscEntry.fullName = player
+			pscEntry.C = info.classToken
+			pscEntry.CID = classID
+			pscEntry.F = info.faction
+			pscEntry.HL = info.honorLevel
+			pscEntry.MID = currentMapID
+			pscEntry.RC = raceName
+			pscEntry.RL = role
+			pscEntry.ROLE = roleAssigned
+			pscEntry.RT = raceToken
+			pscEntry.S = sexID
+			pscEntry.SPEC = info.talentSpec
+			pscEntry.T = currentTime
 
-			-- : get race info from name (if possible)
-			local raceID, factionID = NS.GetRaceInfoFromName(raceName, nil)
+			-- : found raceID + factionID ?
+			local raceID, factionID = GetRaceInfoFromName(raceName, nil)
 			if raceID and factionID then
 				-- : update
-				NS.PSC[info.guid].F = factionID
-				NS.PSC[info.guid].RID = raceID
-				NS.PlayerDB[player].F = factionID
-				NS.PlayerDB[player].RID = raceID
+				pscEntry.F = factionID
+				pscEntry.RID = raceID
+				dbEntry.F = factionID
+				dbEntry.RID = raceID
 			end
 
 			-- : max level pvp?
 			if maxLevelPvP then
 				-- : update
-				NS.PSC[info.guid].L = NS.MaxLevel
-				NS.PlayerDB[player].L = NS.MaxLevel
+				pscEntry.L = targetMaxLevel
+				dbEntry.L = targetMaxLevel
 			end
 		end
 	end
 end
 
---|> purge PSC
-function NS.ValidatePSC()
-	-- : process all
+--|> validate player score cache
+local EXPIRY_TIME = 86400 * 7
+local function ValidatePSC()
+	-- : localize
+	local psc = NS.PSC
+	local playerFaction = NS.Player.FactionID
 	local currentTime = time()
-	for GUID, data in pairs(NS.PSC) do
-		-- : purge bots
-		if data.HL == 0 then
-			-- : delete
-			wipe(NS.PSC[GUID])
-			NS.PSC[GUID] = nil
-		-- : same faction as player?
-		elseif data.F == NS.Player.FactionID then
-			-- : delete
-			wipe(NS.PSC[GUID])
-			NS.PSC[GUID] = nil
-		else
-			-- : no time?
-			if not data.T then
-				-- : delete
-				wipe(NS.PSC[GUID])
-				NS.PSC[GUID] = nil
-			else
-				-- : has decimal?
-				if mfloor(data.T) ~= data.T then
-					-- : update time
-					NS.PSC[GUID].T = currentTime
-				else
-					-- : expired?
-					if data.T < (currentTime - (86400 * 7)) then
-						-- : delete
-						wipe(NS.PSC[GUID])
-						NS.PSC[GUID] = nil
-					end
-				end
-			end
+	local cutOffTime = currentTime - EXPIRY_TIME
+
+	-- : process all
+	local GetRaceToken = RAC and RAC.GetRaceToken
+	for GUID, data in pairs(psc) do
+		-- : invalid player?
+		local shouldDelete = false
+		if data.HL == 0 or data.F == playerFaction or not data.T then
+			shouldDelete = true
+		elseif mfloor(data.T) ~= data.T then
+			data.T = currentTime
+		elseif data.T < cutOffTime then
+			shouldDelete = true
 		end
 
-		-- : not purged?
-		if NS.PSC[GUID] then
+		-- : should delete?
+		if shouldDelete then
+			-- : delete
+			wipe(data)
+			psc[GUID] = nil
+		else
 			-- : no race name?
-			if not NS.PSC[GUID].RC then
-				-- : has info still?
-				if NS.PSC[GUID].info then
-					-- : has race name?
-					local info = NS.PSC[GUID].info
-					if info.raceName then
-						-- : get race token
-						local raceToken, raceName = RAC:GetRaceToken(info.raceName) or nil
-						if raceToken and raceName then
-							-- : update race
-							NS.PSC[GUID].RC = raceName
-							NS.PSC[GUID].RT = raceToken
-						end
+			local raceName, raceToken
+			if not data.RC then
+				-- : found data race name?
+				local info = data.info
+				if info and info.raceName then
+					-- : found race token?
+					raceToken, raceName = RAC:GetRaceToken(info.raceName)
+					if raceToken and raceName then
+						-- : update
+						data.RC = raceName
+						data.RT = raceToken
 					end
 				end
 			-- : no race token?
-			elseif not NS.PSC[GUID].RT then
-				-- : get race token
-				local raceToken, raceName = RAC:GetRaceToken(NS.PSC[GUID].RC) or nil
+			elseif not data.RT then
+				-- : found race token?
+				raceToken, raceName = RAC:GetRaceToken(data.RC)
 				if raceToken and raceName then
-					-- : update race
-					NS.PSC[GUID].RC = raceName
-					NS.PSC[GUID].RT = raceToken
+					-- : update
+					data.RC = raceName
+					data.RT = raceToken
 				end
 			end
 
-			-- : no GUID?
-			if not NS.PSC[GUID].GUID then
-				-- : save GUID
-				NS.PSC[GUID].GUID = GUID
+			-- : found GUID?
+			if not data.GUID then
+				data.GUID = GUID
 			end
 
-			-- : old realName?
-			if NS.PSC[GUID].realName then
-				-- : save name
-				NS.PSC[GUID].NAME = NS.PSC[GUID].realName
-				NS.PSC[GUID].fullName = NS.PSC[GUID].realName
-				NS.PSC[GUID].realName = nil
+			-- : found old realName?
+			local realName = data.realName
+			if realName then
+				data.NAME = realName
+				data.fullName = realName
+				data.realName = nil
 			end
 
-			-- : remove old field
-			NS.PSC[GUID].realGUID = nil
+			-- : delete
+			data.realGUID = nil
 		end
 	end
 end
 
 --|> create weizFrame (for specialization text)
-function NS.weizFrame_Create()
+local function weizFrame_Create()
 	-- : create / setup frame
 	weizFrame = weizFrame or CreateFrame("Frame", nil, UIParent)
 	weizFrame:SetSize(150, 20)
@@ -966,7 +899,36 @@ function NS.weizFrame_Create()
 	weizFrame.Text:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 12, "OUTLINE")
 	weizFrame.Text:SetAllPoints()
 	weizFrame.Text:SetTextColor(1, 1, 1, 1)
-	weizFrame.Text:SetText("TESTING")
+end
+
+--|> pulse update
+local pulseTimeoutCount = 1
+local pulseTargetCount = 1
+local function PulseTimeoutUpdate()
+	-- : every 2 seconds?
+	if pulseTimeoutCount == 2 then
+		pulseTimeoutCount = 1
+		if NS.NearbyCount and NS.NearbyCount > 0 then
+			NS.ManageListTimeouts()
+			NS.RefreshAllNamePlates()
+		end
+	else
+		pulseTimeoutCount = pulseTimeoutCount + 1
+	end
+
+	-- : every 5 seconds?
+	if pulseTargetCount == 5 then
+		pulseTargetCount = 1
+		NS.UpdateNamePlateUnit("target")
+		UpdateGroupRoles()
+	else
+		pulseTargetCount = pulseTargetCount + 1
+	end
+end
+
+--|> pulse event
+function NS.PulseEvent()
+	PulseTimeoutUpdate()
 end
 
 --|> OnEvent
@@ -1027,12 +989,12 @@ local function OnEvent(self, event, ...)
 	elseif event == "NAME_PLATE_UNIT_ADDED" then
 		-- : update unit
 		local unitToken = ...
-		NS.NamePlateUnitAdded(unitToken)
+		NamePlateUnitAdded(unitToken)
 	-- : name plate unit removed?
 	elseif event == "NAME_PLATE_UNIT_REMOVED" then
 		-- : get name plate
 		local unitToken = ...
-		NS.NamePlateUnitRemoved(unitToken)
+		NamePlateUnitRemoved(unitToken)
 	-- : player entering battleground
 	elseif event == "PLAYER_ENTERING_BATTLEGROUND" then
 		-- : request battlefield score data
@@ -1045,8 +1007,8 @@ local function OnEvent(self, event, ...)
 		NS.NPC = {}
 		NS.PID_Cache = {}
 		NS.EnemyPlayerCache = {}
-		NS.UpdateGroupRoles()
-		NS.weizFrame_Create()
+		UpdateGroupRoles()
+		weizFrame_Create()
 
 		-- : get proper zone / state
 		NS.Zone.pvpType = select(1, GetZonePVPInfo())
@@ -1055,11 +1017,11 @@ local function OnEvent(self, event, ...)
 		NS.mapID = GetBestMapForUnit("player")
 
 		-- : validate player score cache
-		NS.ValidatePSC()
+		ValidatePSC()
 	-- : player leaving world?
 	elseif event == "PLAYER_LEAVING_WORLD" then
 		-- : update specialization
-		NS.UpdateNamePlateSpecialization()
+		UpdateNamePlateSpecialization()
 
 		-- : leaving pvp?
 		if NS.Zone.instance == "pvp" then
@@ -1075,12 +1037,12 @@ local function OnEvent(self, event, ...)
 		-- : check main assist?
 		if checkMainAssist == true then
 			-- : update group roles
-			NS.UpdateGroupRoles()
+			UpdateGroupRoles()
 		end
 	-- : player roles changed?
 	elseif event == "PLAYER_ROLES_ASSIGNED" then
 		-- : update group roles
-		NS.UpdateGroupRoles()
+		UpdateGroupRoles()
 	-- : player target changed?
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		-- : get name plate
@@ -1099,11 +1061,11 @@ local function OnEvent(self, event, ...)
 		end
 
 		-- : update specialization
-		NS.UpdateNamePlateSpecialization(namePlate, unitToken)
+		UpdateNamePlateSpecialization(namePlate, unitToken)
 	-- : player target died?
 	elseif event == "PLAYER_TARGET_DIED" then
 		-- : update specialization
-		NS.UpdateNamePlateSpecialization()
+		UpdateNamePlateSpecialization()
 	-- : pvp match state changed?
 	elseif event == "PVP_MATCH_STATE_CHANGED" then
 		-- : save match state
@@ -1141,10 +1103,10 @@ local function OnEvent(self, event, ...)
 	-- : update battlefield score
 	elseif event == "UPDATE_BATTLEFIELD_SCORE" then
 		-- : update battlefield score
-		NS.UpdateBattlefieldScore()
+		UpdateBattlefieldScore()
 
 		-- : update group roles
-		NS.UpdateGroupRoles()
+		UpdateGroupRoles()
 	-- : update mouseover unit
 	elseif event == "UPDATE_MOUSEOVER_UNIT" then
 		-- : get name plate
@@ -1162,10 +1124,10 @@ local function OnEvent(self, event, ...)
 					local PID = NS.NPC[unitToken]
 					if PID and NS.PID_Cache[PID] and not NS.PID_Cache[PID].specialization then
 						-- : get mouse over specialization
-						NS.PID_Cache[PID].specialization = NS.GetMouseoverSpecialization("mouseover")
+						NS.PID_Cache[PID].specialization = GetMouseoverSpecialization("mouseover")
 						if NS.PID_Cache[PID].specialization then
 							-- : update specialization
-							NS.UpdateNamePlateSpecialization(namePlate, unitToken)
+							UpdateNamePlateSpecialization(namePlate, unitToken)
 						end
 					end
 				end

@@ -20,7 +20,7 @@ FontTitleBold:SetFont("Interface/Addons/weizPVP/Media/Fonts/RobotoCondensed-Bold
 --: weizPVP_FontThin
 local FontThin = CreateFont("weizPVP_FontThin")
 FontThin:CopyFontObject(GameFontNormal)
-FontThin:SetFont("Interface/Addons/weizPVP/Media/Fonts/AccidentalPresidency.ttf.ttf", 16, "OUTLINE")
+FontThin:SetFont("Interface/Addons/weizPVP/Media/Fonts/AccidentalPresidency.ttf", 16, "OUTLINE")
 
 --: weizPVP_FontThinItalic
 local FontThinItalic = CreateFont("weizPVP_FontThinItalic")

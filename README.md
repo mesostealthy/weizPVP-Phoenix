@@ -12,7 +12,9 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.1.0.2:
+v3.1.1.0:
 
-\-Add KOS working again for PVP content.
+\-Updated TOC for v12.0.7 patch.
+
+\-Updated Libraries.
 

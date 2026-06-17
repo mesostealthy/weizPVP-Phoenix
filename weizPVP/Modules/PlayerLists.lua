@@ -331,7 +331,7 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 		end
 
 		--: ROLE
-		if Role then
+		if Role and not issecretvalue(Role) then
 			NS.CoreUI.Bar[num].RoleIcon:SetTexture(roleIcons[Role])
 		elseif not issecretvalue(Name) and NS.PlayerDB[Name] and NS.PlayerDB[Name].RL then
 			NS.CoreUI.Bar[num].RoleIcon:SetTexture(roleIcons[NS.PlayerDB[Name].RL])
