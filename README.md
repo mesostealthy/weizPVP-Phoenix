@@ -12,7 +12,7 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.2.1.0 (Beta 1):
+v3.2.1.0 (Beta 1a):
 
 \-Got basic functionality back working for World PVP.
 
