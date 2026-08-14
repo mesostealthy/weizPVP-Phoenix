@@ -58,17 +58,17 @@ function NS.SetCoreFramePosition()
 end
 
 --> Format Player Name And Realm <-----------------------------------
-function NS.FormatPlayerNameAndRealm(PID)
+function NS.FormatPlayerNameAndRealm(playerToken)
 	-- : sanity checks
-	if not PID or not NS.PID_Cache[PID] then
+	if not playerToken or not NS.PlayerActiveCache[playerToken] then
 		-- : unknown
 		return "???"
 	end
 
 	-- : finalize name / realm with colors
-	local _, _, _, classColor = GetClassColor(NS.PID_Cache[PID].C)
-	local charNameAndRealm = WrapTextInColorCode(NS.PID_Cache[PID].name, classColor)
-	charNameAndRealm = charNameAndRealm .. " |cffbbbbbb-|r " .. NS.ColorsLUT["realm"]:WrapTextInColorCode(NS.PID_Cache[PID].realm)
+	local _, _, _, classColor = GetClassColor(NS.PlayerActiveCache[playerToken].C)
+	local charNameAndRealm = WrapTextInColorCode(NS.PlayerActiveCache[playerToken].name, classColor)
+	charNameAndRealm = charNameAndRealm .. " |cffbbbbbb-|r " .. NS.ColorsLUT["realm"]:WrapTextInColorCode(NS.PlayerActiveCache[playerToken].realm)
 	return charNameAndRealm
 end
 

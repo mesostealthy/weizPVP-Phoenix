@@ -17,21 +17,14 @@ NS.KOS = {}
 --|> Is Player Target <-----------------------------------------------
 local function IsPlayerTarget()
 	-- : find player name (if possible)
-	local player = nil
-	local PID = NS.GetPIDForUnit("target")
-	if NS.PlayersOnBars[PID] then
-		-- : proper NAME?
-		if NS.PlayerActiveCache[PID].NAME then
-			-- : set player
-			player = NS.PlayerActiveCache[PID].NAME
+	local playerToken, player = NS.GetPlayerTokens("target")
+	if NS.PlayersOnBars[playerToken] then
+		-- : found player?
+		if playerToken == NS.KOS.menuPlayerName then
+			-- : reset / new target
+			NS.Crosshair.Reset()
+			NS.Crosshair.NewTarget()
 		end
-	end
-
-	-- : found player?
-	if player and not issecretvalue(player) and (player == NS.KOS.menuPlayerName) then
-		-- : reset / new target
-		NS.Crosshair.Reset()
-		NS.Crosshair.NewTarget()
 	end
 end
 
@@ -95,21 +88,14 @@ function NS.KOS.AddPlayer(playerName)
 	NS.RefreshCurrentList()
 
 	-- : find player name (if possible)
-	local player = nil
-	local PID = NS.GetPIDForUnit("target")
-	if NS.PlayersOnBars[PID] then
-		-- : proper NAME?
-		if NS.PlayerActiveCache[PID].NAME then
-			-- : set player
-			player = NS.PlayerActiveCache[PID].NAME
+	local playerToken, player = NS.GetPlayerTokens("target")
+	if NS.PlayersOnBars[playerToken] then
+		-- : crosshair enable?
+		if NS.Options.Crosshair.Enabled then
+			-- : reset / new target
+			NS.Crosshair.Reset()
+			NS.Crosshair.NewTarget()
 		end
-	end
-
-	-- : found player?
-	if player and not issecretvalue(player) and (player == playerName) and NS.Options.Crosshair.Enabled then
-		-- : reset / new target
-		NS.Crosshair.Reset()
-		NS.Crosshair.NewTarget()
 	end
 end
 
@@ -121,21 +107,14 @@ function NS.KOS.RemovePlayer(playerName)
 	NS.RefreshCurrentList()
 
 	-- : find player name (if possible)
-	local player = nil
-	local PID = NS.GetPIDForUnit("target")
-	if NS.PlayersOnBars[PID] then
-		-- : proper NAME?
-		if NS.PlayerActiveCache[PID].NAME then
-			-- : set player
-			player = NS.PlayerActiveCache[PID].NAME
+	local playerToken, player = NS.GetPlayerTokens("target")
+	if NS.PlayersOnBars[playerToken] then
+		-- : crosshair enable?
+		if NS.Options.Crosshair.Enabled then
+			-- : reset / new target
+			NS.Crosshair.Reset()
+			NS.Crosshair.NewTarget()
 		end
-	end
-
-	-- : found player?
-	if player and not issecretvalue(player) and (player == playerName) and NS.Options.Crosshair.Enabled then
-		-- : reset / new target
-		NS.Crosshair.Reset()
-		NS.Crosshair.NewTarget()
 	end
 end
 

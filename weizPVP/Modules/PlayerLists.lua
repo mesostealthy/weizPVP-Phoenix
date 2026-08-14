@@ -10,6 +10,7 @@ local _, NS = ...
 -----------------------------------------------------------
 local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local CopyTable = CopyTable
+local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
 local InCombatLockdown, GetTime = InCombatLockdown, GetTime
 local pairs, gsub, wipe = pairs, gsub, wipe
 local PixelUtil_SetStatusBarValue = PixelUtil.SetStatusBarValue
@@ -18,7 +19,6 @@ local GetMaxLevelForPlayerExpansion = GetMaxLevelForPlayerExpansion
 -- Locals
 -----------------------------------------------------------
 local NearbyCountTopColorLimit = 100
-local darkenValue = 0.05
 local guildTxtLength
 local roleIcons = {
 	["TANK"] = "Interface/Addons/weizPVP/Media/Roles/tank.tga",
@@ -91,7 +91,6 @@ function NS.ManageBarsDisplayed()
 			NS.CoreUI.Bar[i].RoleIcon:SetTexture("Interface/Addons/weizPVP/Media/Icons/unknown.tga", false)
 			NS.CoreUI.Bar[i].Name:SetText("")
 			NS.CoreUI.Bar[i].Target = ""
-			NS.CoreUI.Bar[i].NAME = nil
 			NS.CoreUI.Bar[i].displayName = nil
 			NS.CoreUI.Bar[i].displayGuild = nil
 
@@ -123,12 +122,12 @@ function NS.ManageListTimeouts()
 	local count = 1
 	local timestamp = GetTime()
 	--: ACTIVE
-	for PID in pairs(NS.ActiveList) do
-		local diff = math.floor(timestamp - NS.ActiveList[PID].TimeUpdated)
+	for playerToken in pairs(NS.ActiveList) do
+		local diff = math.floor(timestamp - NS.ActiveList[playerToken].TimeUpdated)
 		if diff > NS.Options.Sorting.NearbyActiveTimeout then
-			NS.InactiveList[PID] = NS.ActiveList[PID]
-			NS.InactiveList[PID].TimeAdded = timestamp + (count * 0.001)
-			NS.ActiveList[PID] = nil
+			NS.InactiveList[playerToken] = NS.ActiveList[playerToken]
+			NS.InactiveList[playerToken].TimeAdded = timestamp + (count * 0.001)
+			NS.ActiveList[playerToken] = nil
 			count = count + 1
 			expired = true
 		end
@@ -137,24 +136,24 @@ function NS.ManageListTimeouts()
 	count = 0
 	--: ACTIVE DEAD
 	timestamp = GetTime()
-	for PID in pairs(NS.ActiveDeadList) do
-		local diff = math.floor(timestamp - NS.ActiveDeadList[PID].TimeUpdated)
+	for playerToken in pairs(NS.ActiveDeadList) do
+		local diff = math.floor(timestamp - NS.ActiveDeadList[playerToken].TimeUpdated)
 		if diff > NS.Options.Sorting.NearbyActiveTimeout then
-			NS.InactiveDeadList[PID] = NS.ActiveDeadList[PID]
-			NS.InactiveDeadList[PID].TimeAdded = timestamp + (count * 0.001)
-			NS.ActiveDeadList[PID] = nil
+			NS.InactiveDeadList[playerToken] = NS.ActiveDeadList[playerToken]
+			NS.InactiveDeadList[playerToken].TimeAdded = timestamp + (count * 0.001)
+			NS.ActiveDeadList[playerToken] = nil
 			expired = true
 			count = count + 1
 		end
 	end
 	--: INACTIVE
 	timestamp = GetTime()
-	for PID in pairs(NS.InactiveList) do
-		local diff = math.floor(timestamp - NS.InactiveList[PID].TimeUpdated)
+	for playerToken in pairs(NS.InactiveList) do
+		local diff = math.floor(timestamp - NS.InactiveList[playerToken].TimeUpdated)
 		if diff > NS.Options.Sorting.NearbyInactiveTimeout then
-			NS.InactiveList[PID] = nil
-			NS.NearbyList[PID] = nil
-			NS.PlayerActiveCache[PID] = nil
+			NS.InactiveList[playerToken] = nil
+			NS.NearbyList[playerToken] = nil
+			NS.PlayerActiveCache[playerToken] = nil
 			expiredCount = expiredCount + 1
 			expired = true
 			removed = true
@@ -162,12 +161,12 @@ function NS.ManageListTimeouts()
 	end
 	--: INACTIVE DEAD
 	timestamp = GetTime()
-	for PID in pairs(NS.InactiveDeadList) do
-		local diff = math.floor(timestamp - NS.InactiveDeadList[PID].TimeUpdated)
+	for playerToken in pairs(NS.InactiveDeadList) do
+		local diff = math.floor(timestamp - NS.InactiveDeadList[playerToken].TimeUpdated)
 		if diff > NS.Options.Sorting.NearbyInactiveTimeout then
-			NS.InactiveDeadList[PID] = nil
-			NS.NearbyList[PID] = nil
-			NS.PlayerActiveCache[PID] = nil
+			NS.InactiveDeadList[playerToken] = nil
+			NS.NearbyList[playerToken] = nil
+			NS.PlayerActiveCache[playerToken] = nil
 			expiredCount = expiredCount + 1
 			expired = true
 			removed = true
@@ -220,7 +219,7 @@ function NS.FormatLevelString(estimated, level)
 end
 
 -- ⚒️ Set Bar Target Macrotext
-function NS.SetBarTargetMacrotext(barID, PID)
+function NS.SetBarTargetMacrotext(barID, playerToken)
 	-- : main assist set?
 	if NS.mainAssist then
 		-- : finished
@@ -233,9 +232,9 @@ function NS.SetBarTargetMacrotext(barID, PID)
 		local NAME = nil
 		local macrotext = nil
 		local bar = NS.CoreUI.Bar[barID]
-		if bar and bar.PID then
+		if bar and bar.playerToken then
 			-- : has macro text?
-			local data = NS.PlayerActiveCache[bar.PID]
+			local data = NS.PlayerActiveCache[bar.playerToken]
 			if data and data.macrotext then
 				-- : found
 				NAME = data.NAME
@@ -269,15 +268,15 @@ end
 
 -- ⚒️ Update Bar
 -----------------------------------------------------------
-local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated, Dead, Role, Name, FormattedName)
-	if (not Name) or (not PID) then
+local function UpdateBar(num, playerToken, Alpha, Health, Class, Guild, Level, Estimated, Dead, Role, Name, FormattedName)
+	if not Name or not playerToken then
 		return
 	end
-	if NS.CoreUI.Bar[num] and PID then
+	if NS.CoreUI.Bar[num] and playerToken then
 		--: SYNC INFO
 		NS.CoreUI.Bar[num].Class = Class
-		NS.CoreUI.Bar[num].PID = PID
-		NS.PlayersOnBars[PID] = num
+		NS.CoreUI.Bar[num].playerToken = playerToken
+		NS.PlayersOnBars[playerToken] = num
 
 		--: TARGET MACRO
 		NS.SetBarTargetMacrotext(num)
@@ -291,16 +290,12 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 		end
 
 		--: NAME TEXT
-		local fullName = Name
-		if NS.PID_Cache[PID] then
-			-- : use cached data
-			fullName = NS.PID_Cache[PID].fullName
-			NS.CoreUI.Bar[num].displayName = NS.PID_Cache[PID].displayedName
-			NS.CoreUI.Bar[num].NAME = fullName
-		else
-			NS.CoreUI.Bar[num].NAME = Name
-		end
+		NS.CoreUI.Bar[num].displayName = NS.PlayerActiveCache[playerToken].name
 		NS.CoreUI.Bar[num].Name:SetText(NS.CoreUI.Bar[num].displayName)
+
+		--: GUILD TEXT
+		NS.CoreUI.Bar[num].displayGuild = NS.PlayerActiveCache[playerToken].G
+		NS.CoreUI.Bar[num].Guild:SetText(NS.CoreUI.Bar[num].displayGuild)
 
 		--: KOS ICON
 		if not issecretvalue(fullName) and NS.KosList[fullName] then
@@ -313,14 +308,13 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 		NS.CoreUI.Bar[num].Level:SetText(NS.FormatLevelString(Estimated, Level))
 
 		--: CLASS COLOR (BAR COLOR)
-		if Class and RAID_CLASS_COLORS[Class] then
-			NS.CoreUI.Bar[num]:SetStatusBarColor(
-				RAID_CLASS_COLORS[Class].r - darkenValue,
-				RAID_CLASS_COLORS[Class].g - darkenValue,
-				RAID_CLASS_COLORS[Class].b - darkenValue,
-				Alpha
-			)
-		end
+		local classColor = C_ClassColor_GetClassColor(Class)
+		NS.CoreUI.Bar[num]:SetStatusBarColor(
+			classColor.r,
+			classColor.g,
+			classColor.b,
+			Alpha
+		)
 		NS.CoreUI.Bar[num].bg:SetVertexColor(0, 0, 0, 0.5)
 
 		--: HEALTH (BAR VALUE)
@@ -348,16 +342,12 @@ local function UpdateBar(num, PID, Alpha, Health, Class, Guild, Level, Estimated
 				NS.CoreUI.Bar[num].DeadIcon:Hide()
 			end
 		end
-
-		--: GUILD TEXT
-		NS.CoreUI.Bar[num].Guild:SetText(Guild)
-		NS.CoreUI.Bar[num]:SetAlpha(NS.Options.Bars.AlphaDefault)
 	end
 end
 
 -- ⚒️ Update Player List
 -----------------------------------------------------------
-function NS.UpdatePlayerLists(PID, timeUpdate, dead, newPlayerOnList)
+function NS.UpdatePlayerLists(playerToken, timeUpdate, dead, newPlayerOnList)
 	if not NS.Options.Bars then
 		return
 	end
@@ -369,7 +359,7 @@ function NS.UpdatePlayerLists(PID, timeUpdate, dead, newPlayerOnList)
 			reSortList = true
 		end
 	else
-		if NS.PlayersOnBars[PID] ~= nil then
+		if NS.PlayersOnBars[playerToken] ~= nil then
 			if dead then
 				reSortList = true
 			end
@@ -377,14 +367,14 @@ function NS.UpdatePlayerLists(PID, timeUpdate, dead, newPlayerOnList)
 	end
 
 	-- NEW PLAYER
-	if NS.NearbyList[PID] == nil or newPlayerOnList then -- ADDING NEW PLAYER
+	if NS.NearbyList[playerToken] == nil or newPlayerOnList then -- ADDING NEW PLAYER
 		playerOnBar = false
 		reSortList = true
 
 		--: Alerts: KOS or 'New Detection'
-		if not issecretvalue(NS.PlayerActiveCache[PID].fullName) then
-			if NS.KosList[NS.PlayerActiveCache[PID].fullName] then
-				NS.KOSAlert(PID)
+		if not issecretvalue(NS.PlayerActiveCache[playerToken].fullName) then
+			if NS.KosList[NS.PlayerActiveCache[playerToken].fullName] then
+				NS.KOSAlert(playerToken)
 			else
 				--: New player detected
 				NS.NewPlayerAlert()
@@ -394,53 +384,53 @@ function NS.UpdatePlayerLists(PID, timeUpdate, dead, newPlayerOnList)
 			NS.NewPlayerAlert()
 		end
 
-		NS.NearbyList[PID] = {}
-		NS.NearbyList[PID].TimeUpdated = timeUpdate
-		NS.NearbyList[PID].TimeAdded = timeUpdate
+		NS.NearbyList[playerToken] = {}
+		NS.NearbyList[playerToken].TimeUpdated = timeUpdate
+		NS.NearbyList[playerToken].TimeAdded = timeUpdate
 		if dead then
-			NS.ActiveDeadList[PID] = NS.ActiveDeadList[PID] or {}
-			NS.ActiveDeadList[PID].TimeUpdated = timeUpdate
-			NS.ActiveDeadList[PID].TimeAdded = timeUpdate
+			NS.ActiveDeadList[playerToken] = NS.ActiveDeadList[playerToken] or {}
+			NS.ActiveDeadList[playerToken].TimeUpdated = timeUpdate
+			NS.ActiveDeadList[playerToken].TimeAdded = timeUpdate
 		else
-			NS.ActiveList[PID] = NS.ActiveList[PID] or {}
-			NS.ActiveList[PID].TimeAdded = timeUpdate
-			NS.ActiveList[PID].TimeUpdated = timeUpdate
+			NS.ActiveList[playerToken] = NS.ActiveList[playerToken] or {}
+			NS.ActiveList[playerToken].TimeAdded = timeUpdate
+			NS.ActiveList[playerToken].TimeUpdated = timeUpdate
 		end
-	elseif not NS.ActiveList[PID] and not NS.ActiveDeadList[PID] then -- EXISTING PLAYER; WAS INACTIVE
+	elseif not NS.ActiveList[playerToken] and not NS.ActiveDeadList[playerToken] then -- EXISTING PLAYER; WAS INACTIVE
 		reSortList = true
 		if dead then
-			NS.ActiveDeadList[PID] = NS.InactiveDeadList[PID] or {}
-			NS.ActiveDeadList[PID].TimeUpdated = timeUpdate
-			NS.ActiveDeadList[PID].TimeAdded = timeUpdate
-			NS.NearbyList[PID].TimeUpdated = timeUpdate
-			NS.NearbyList[PID].TimeAdded = timeUpdate
-			NS.ActiveList[PID] = nil
+			NS.ActiveDeadList[playerToken] = NS.InactiveDeadList[playerToken] or {}
+			NS.ActiveDeadList[playerToken].TimeUpdated = timeUpdate
+			NS.ActiveDeadList[playerToken].TimeAdded = timeUpdate
+			NS.NearbyList[playerToken].TimeUpdated = timeUpdate
+			NS.NearbyList[playerToken].TimeAdded = timeUpdate
+			NS.ActiveList[playerToken] = nil
 		else
-			NS.ActiveList[PID] = NS.InactiveList[PID] or {}
-			NS.ActiveList[PID].TimeUpdated = timeUpdate
-			NS.ActiveList[PID].TimeAdded = timeUpdate
-			NS.NearbyList[PID].TimeUpdated = timeUpdate
-			NS.NearbyList[PID].TimeAdded = timeUpdate
-			NS.ActiveDeadList[PID] = nil
+			NS.ActiveList[playerToken] = NS.InactiveList[playerToken] or {}
+			NS.ActiveList[playerToken].TimeUpdated = timeUpdate
+			NS.ActiveList[playerToken].TimeAdded = timeUpdate
+			NS.NearbyList[playerToken].TimeUpdated = timeUpdate
+			NS.NearbyList[playerToken].TimeAdded = timeUpdate
+			NS.ActiveDeadList[playerToken] = nil
 		end
-		NS.InactiveList[PID] = nil
-		NS.InactiveDeadList[PID] = nil
+		NS.InactiveList[playerToken] = nil
+		NS.InactiveDeadList[playerToken] = nil
 	else -- EXISTING PLAYER; ACTIVE
 		if dead then
-			NS.ActiveDeadList[PID] = NS.ActiveDeadList[PID] or {}
-			NS.ActiveDeadList[PID].TimeUpdated = timeUpdate
-			NS.NearbyList[PID].TimeUpdated = timeUpdate
-			NS.ActiveList[PID] = nil
+			NS.ActiveDeadList[playerToken] = NS.ActiveDeadList[playerToken] or {}
+			NS.ActiveDeadList[playerToken].TimeUpdated = timeUpdate
+			NS.NearbyList[playerToken].TimeUpdated = timeUpdate
+			NS.ActiveList[playerToken] = nil
 		else
-			NS.ActiveList[PID] = NS.ActiveList[PID] or {}
-			NS.ActiveList[PID].TimeUpdated = timeUpdate
-			NS.NearbyList[PID].TimeUpdated = timeUpdate
-			NS.ActiveDeadList[PID] = nil
+			NS.ActiveList[playerToken] = NS.ActiveList[playerToken] or {}
+			NS.ActiveList[playerToken].TimeUpdated = timeUpdate
+			NS.NearbyList[playerToken].TimeUpdated = timeUpdate
+			NS.ActiveDeadList[playerToken] = nil
 		end
 	end
 	-- Check to see if we need to add a kos player to the bars
 	if not playerOnBar and ActiveListCount > NS.Options.Bars.MaxNumBars then
-		if not NS.KosList[NS.PlayerActiveCache[PID].Name] then
+		if not NS.KosList[NS.PlayerActiveCache[playerToken].name] then
 			return
 		else
 			reSortList = true
@@ -450,12 +440,12 @@ function NS.UpdatePlayerLists(PID, timeUpdate, dead, newPlayerOnList)
 	-- Sort only if we moved the player from one sub-list to another
 	if reSortList then
 		NS.SortNearbyList()
-		if NS.PlayersOnBars[PID] or newPlayerOnList then
+		if NS.PlayerActiveCache[playerToken] or newPlayerOnList then
 			NS.RefreshCurrentList()
 		end
 	else
-		if NS.PlayersOnBars[PID] then
-			NS.RefreshBarByPID(PID)
+		if NS.PlayerActiveCache[playerToken] or newPlayerOnList then
+			NS.RefreshBarByPlayerToken(playerToken)
 		end
 	end
 end
@@ -464,15 +454,15 @@ end
 -----------------------------------------------------------
 local timeGotten = GetTime()
 local dead = false
-function NS.AddPlayerDataToNearby(PID, newPlayerOnList)
-	if not PID then
+function NS.AddPlayerDataToNearby(playerToken, newPlayerOnList)
+	if not playerToken then
 		return
 	end
 	dead = false
-	if NS.PlayerActiveCache[PID] and NS.PlayerActiveCache[PID].Dead ~= nil then
-		dead = NS.PlayerActiveCache[PID].Dead
+	if NS.PlayerActiveCache[playerToken] and NS.PlayerActiveCache[playerToken].Dead ~= nil then
+		dead = NS.PlayerActiveCache[playerToken].Dead
 	else
-		NS.PlayerActiveCache[PID].Dead = false
+		NS.PlayerActiveCache[playerToken].Dead = false
 	end
 	timeGotten = GetTime()
 	if lastTimestamp >= timeGotten then
@@ -484,7 +474,7 @@ function NS.AddPlayerDataToNearby(PID, newPlayerOnList)
 		NS.NearbyListSize = NS.NearbyListSize + 1
 		NS.UpdateNearbyCount()
 	end
-	NS.UpdatePlayerLists(PID, lastTimestamp, dead, newPlayerOnList)
+	NS.UpdatePlayerLists(playerToken, lastTimestamp, dead, newPlayerOnList)
 end
 
 -- ⚒️ Refresh Current List
@@ -497,33 +487,34 @@ function NS.RefreshCurrentList()
 	for k, data in pairs(NS.CurrentList) do
 		if k <= NS.Options.Bars.MaxNumBars then
 			-- Update Alpha if needed
-			local PID = data.PID
+			local playerToken = data.playerToken
 			alphaCurrentList = NS.Options.Bars.AlphaDefault or 1
-			if NS.InactiveList[PID] or NS.InactiveDeadList[PID] then
+			if NS.InactiveList[playerToken] or NS.InactiveDeadList[playerToken] then
 				alphaCurrentList = NS.Options.Bars.AlphaInactive
-			elseif NS.ActiveDeadList[PID] then
+			elseif NS.ActiveDeadList[playerToken] then
 				alphaCurrentList = NS.Options.Bars.AlphaDead
 			end
-			if NS.PlayerActiveCache[PID] then
-				localPlayersOnBars[NS.PlayerActiveCache[PID].PID] = k
-				if not NS.PlayerActiveCache[PID].Name then
+			if NS.PlayerActiveCache[playerToken] then
+				localPlayersOnBars[playerToken] = k
+				if not NS.PlayerActiveCache[playerToken].name then
 					return
 				end
 				-- Update Bar
 				UpdateBar(
 					k,
-					PID,
+					playerToken,
 					alphaCurrentList,
-					NS.PlayerActiveCache[PID].Health,
-					NS.PlayerActiveCache[PID].C,
-					NS.PlayerActiveCache[PID].displayGuild,
-					NS.PlayerActiveCache[PID].L,
-					NS.PlayerActiveCache[PID].E,
-					NS.PlayerActiveCache[PID].Dead,
-					NS.PlayerActiveCache[PID].RL,
-					NS.PlayerActiveCache[PID].Name,
-					NS.PlayerActiveCache[PID].displayName
+					NS.PlayerActiveCache[playerToken].Health,
+					NS.PlayerActiveCache[playerToken].C,
+					NS.PlayerActiveCache[playerToken].G,
+					NS.PlayerActiveCache[playerToken].L,
+					NS.PlayerActiveCache[playerToken].E,
+					NS.PlayerActiveCache[playerToken].Dead,
+					NS.PlayerActiveCache[playerToken].RL,
+					NS.PlayerActiveCache[playerToken].name,
+					NS.PlayerActiveCache[playerToken].displayName
 				)
+		
 			end
 		else
 			break
@@ -559,9 +550,9 @@ end
 -- ⚒️ Refresh One Bar
 -----------------------------------------------------------
 local alpha = 1
-function NS.RefreshBarByPID(PID)
+function NS.RefreshBarByPlayerToken(playerToken)
 	--: sanity checks
-	if not PID or not NS.PlayersOnBars[PID] or not NS.PlayerActiveCache[PID].Name then
+	if not playerToken or not NS.PlayerActiveCache[playerToken].name then
 		return
 	end
 
@@ -575,27 +566,27 @@ function NS.RefreshBarByPID(PID)
 		alpha = NS.Options.Bars.AlphaDefault
 	end
 
-	if NS.InactiveList[PID] or NS.InactiveDeadList[PID] then
+	if NS.InactiveList[playerToken] or NS.InactiveDeadList[playerToken] then
 		alpha = NS.Options.Bars.AlphaInactive or 0.6
 	end
 
-	if NS.ActiveDeadList[PID] then
+	if NS.ActiveDeadList[playerToken] then
 		alpha = NS.Options.Bars.AlphaDead or 0.8
 	end
 
 	-- Update Bar
 	UpdateBar(
-		NS.PlayersOnBars[PID],
-		PID,
+		NS.PlayersOnBars[playerToken],
+		playerToken,
 		alpha,
-		NS.PlayerActiveCache[PID].Health,
-		NS.PlayerActiveCache[PID].C,
-		NS.PlayerActiveCache[PID].displayGuild,
-		NS.PlayerActiveCache[PID].L,
-		NS.PlayerActiveCache[PID].E,
-		NS.PlayerActiveCache[PID].Dead,
-		NS.PlayerActiveCache[PID].RL,
-		NS.PlayerActiveCache[PID].Name,
-		NS.PlayerActiveCache[PID].displayName
+		NS.PlayerActiveCache[playerToken].Health,
+		NS.PlayerActiveCache[playerToken].C,
+		NS.PlayerActiveCache[playerToken].G,
+		NS.PlayerActiveCache[playerToken].L,
+		NS.PlayerActiveCache[playerToken].E,
+		NS.PlayerActiveCache[playerToken].Dead,
+		NS.PlayerActiveCache[playerToken].RL,
+		NS.PlayerActiveCache[playerToken].name,
+		NS.PlayerActiveCache[playerToken].displayName
 	)
 end

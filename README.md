@@ -12,9 +12,13 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.1.1.0:
+v3.2.1.0 (Beta 1):
 
-\-Updated TOC for v12.0.7 patch.
+\-Got basic functionality back working for World PVP.
+
+\--Still needs more fixes and testing for instanced PVP! But gotta start somewhere!
+
+\-Updated TOC for v12.1.0 patch.
 
 \-Updated Libraries.
 

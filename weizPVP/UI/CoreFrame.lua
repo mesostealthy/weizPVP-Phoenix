@@ -669,14 +669,16 @@ function NS.CoreUI.ChangeTargetIcon()
 	if not weizPVP_CoreFrame.TargetedIcon then
 		return
 	end
-	local PID = NS.GetPIDForUnit("target")
-	if NS.PlayersOnBars[PID] then
+
+	-- : get player tokens
+	local playerToken, player = NS.GetPlayerTokens("target")
+	if NS.PlayersOnBars[playerToken] then
 		if weizPVP_CoreFrame:GetLeft() < 8 then
 			weizPVP_CoreFrame.TargetedIcon:SetRotation(3.14159)
 			weizPVP_CoreFrame.TargetedIcon:ClearAllPoints()
 			weizPVP_CoreFrame.TargetedIcon:SetPoint(
 				"LEFT",
-				NS.CoreUI.Bar[NS.PlayersOnBars[PID]],
+				NS.CoreUI.Bar[NS.PlayersOnBars[playerToken]],
 				"RIGHT",
 				-(NS.Options.Frames.BorderSize),
 				0
@@ -686,7 +688,7 @@ function NS.CoreUI.ChangeTargetIcon()
 			weizPVP_CoreFrame.TargetedIcon:ClearAllPoints()
 			weizPVP_CoreFrame.TargetedIcon:SetPoint(
 				"RIGHT",
-				NS.CoreUI.Bar[NS.PlayersOnBars[PID]],
+				NS.CoreUI.Bar[NS.PlayersOnBars[playerToken]],
 				"LEFT",
 				NS.Options.Frames.BorderSize,
 				0
@@ -696,8 +698,8 @@ function NS.CoreUI.ChangeTargetIcon()
 		if lastRowSelected then
 			NS.CoreUI.Bar[lastRowSelected]:SetStatusBarTexture(SM:Fetch("statusbar", NS.Options.Bars.Texture))
 		end
-		NS.CoreUI.Bar[NS.PlayersOnBars[PID]]:SetStatusBarTexture(SM:Fetch("statusbar", NS.Options.Bars.BarSolid))
-		lastRowSelected = NS.PlayersOnBars[PID] or nil
+		NS.CoreUI.Bar[NS.PlayersOnBars[playerToken]]:SetStatusBarTexture(SM:Fetch("statusbar", NS.Options.Bars.BarSolid))
+		lastRowSelected = NS.PlayersOnBars[playerToken] or nil
 	else
 		weizPVP_CoreFrame.TargetedIcon:Hide()
 		if lastRowSelected then

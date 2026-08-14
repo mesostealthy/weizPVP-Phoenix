@@ -123,7 +123,7 @@ function NS.CoreUI.BuildBars()
 			"PostClick",
 			function(_, button)
 				NS.CoreUI.ButtonPostClick(k, button)
-				NS.ShowPlayerTooltip(NS.CoreUI.Bar[k].PID)
+				NS.ShowPlayerTooltip(NS.CoreUI.Bar[k].playerToken)
 			end
 		)
 		NS.CoreUI.Bar[k].Button:SetScript(
@@ -136,7 +136,7 @@ function NS.CoreUI.BuildBars()
 			"OnEnter",
 			function()
 				UIFrameFadeIn(NS.CoreUI.Bar[k].Highlight, 0.05, 0, 0.2)
-				NS.ShowPlayerTooltip(NS.CoreUI.Bar[k].PID)
+				NS.ShowPlayerTooltip(NS.CoreUI.Bar[k].playerToken)
 			end
 		)
 		NS.CoreUI.Bar[k].Button:SetScript(
@@ -173,23 +173,26 @@ end
 --> PLAYER BAR: POST-CLICK <-----------------------------------------
 function NS.CoreUI.ButtonPostClick(barID, MouseButton)
 	if MouseButton == "LeftButton" then
-		local PID = NS.CoreUI.Bar[barID].PID
-		if PID and NS.PlayerActiveCache[PID] then
-			local currentPID = NS.GetPIDForUnit("target")
-			if currentPID ~= PID then
-				if NS.ActiveList[PID] then
-					NS.InactiveList[PID] = NS.ActiveList[PID]
-					NS.InactiveList[PID].TimeUpdated = GetTime() + NS.Options.Sorting.NearbyActiveTimeout + 0.1
-					NS.ActiveList[PID] = nil
-				elseif NS.ActiveDeadList[PID] then
-					NS.InactiveDeadList[PID] = NS.ActiveDeadList[PID]
-					NS.InactiveDeadList[PID].TimeUpdated = GetTime() + NS.Options.Sorting.NearbyActiveTimeout + 0.1
-					NS.ActiveDeadList[PID] = nil
+		-- : get player tokens
+		local playerToken, player = NS.GetPlayerTokens("target")
+		if playerToken and player then
+			-- : matches?
+			if NS.CoreUI.Bar[barID].playerToken == playerToken then
+				-- : active alive?
+				if NS.ActiveList[playerToken] then
+					NS.InactiveList[playerToken] = NS.ActiveList[playerToken]
+					NS.InactiveList[playerToken].TimeUpdated = GetTime() + NS.Options.Sorting.NearbyActiveTimeout + 0.1
+					NS.ActiveList[playerToken] = nil
+				-- : active dead?
+				elseif NS.ActiveDeadList[playerToken] then
+					NS.InactiveDeadList[playerToken] = NS.ActiveDeadList[playerToken]
+					NS.InactiveDeadList[playerToken].TimeUpdated = GetTime() + NS.Options.Sorting.NearbyActiveTimeout + 0.1
+					NS.ActiveDeadList[playerToken] = nil
 				end
-				NS.SortNearbyList()
-				NS.RefreshCurrentList()
-				NS.CoreUI.ChangeTargetIcon()
 			end
+			NS.SortNearbyList()
+			NS.RefreshCurrentList()
+			NS.CoreUI.ChangeTargetIcon()
 		end
 	end
 end

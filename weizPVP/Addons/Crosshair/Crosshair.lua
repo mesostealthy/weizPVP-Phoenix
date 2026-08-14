@@ -22,7 +22,8 @@ local RangeCheckTicker
 local select = select
 local issecretvalue = issecretvalue
 local UnitClassBase = UnitClassBase
-local DISABLED_FONT_COLOR, RAID_CLASS_COLORS = DISABLED_FONT_COLOR, RAID_CLASS_COLORS
+local DISABLED_FONT_COLOR = DISABLED_FONT_COLOR
+local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
 local InCombatLockdown, UIFrameFadeIn = InCombatLockdown, UIFrameFadeIn
 local IsItemInRange, IsFlying, IsUsableItem = IsItemInRange, IsFlying, IsUsableItem
 local UnitIsConnected, UnitIsHumanPlayer, UnitIsUnit = UnitIsConnected, UnitIsHumanPlayer, UnitIsUnit
@@ -69,7 +70,7 @@ local targetClassColor = {}
 local function SetCrosshairColors()
 	targetClassColor = DISABLED_FONT_COLOR
 	if UnitIsConnected("target") then
-		targetClassColor = RAID_CLASS_COLORS[UnitClassBase("target")]
+		targetClassColor = C_ClassColor_GetClassColor(UnitClassBase("target"))
 		if not targetClassColor then
 			targetClassColor = DISABLED_FONT_COLOR
 		end
@@ -79,25 +80,25 @@ local function SetCrosshairColors()
 	weizPVP_CrosshairFrame.Core_ADD:SetVertexColor(targetClassColor.r, targetClassColor.g, targetClassColor.b, 0.8)
 	--: LINES
 	weizPVP_CrosshairFrame.TopLine:SetVertexColor(
-	targetClassColor.r,
+		targetClassColor.r,
 		targetClassColor.g,
 		targetClassColor.b,
 		NS.Options.Crosshair.LineAlpha
 	)
 	weizPVP_CrosshairFrame.BottomLine:SetVertexColor(
-	targetClassColor.r,
+		targetClassColor.r,
 		targetClassColor.g,
 		targetClassColor.b,
 		NS.Options.Crosshair.LineAlpha
 	)
 	weizPVP_CrosshairFrame.LeftLine:SetVertexColor(
-	targetClassColor.r,
+		targetClassColor.r,
 		targetClassColor.g,
 		targetClassColor.b,
 		NS.Options.Crosshair.LineAlpha
 	)
 	weizPVP_CrosshairFrame.RightLine:SetVertexColor(
-	targetClassColor.r,
+		targetClassColor.r,
 		targetClassColor.g,
 		targetClassColor.b,
 		NS.Options.Crosshair.LineAlpha
@@ -174,32 +175,25 @@ end
 
 --> Check KOS <------------------------------------------------------
 local function CheckKOS()
-	--: find player name (if possible)
-	local player = nil
-	local PID = NS.GetPIDForUnit("target")
-	if NS.PlayersOnBars[PID] then
-		--: proper NAME?
-		if NS.PlayerActiveCache[PID].NAME then
-			--: set player
-			player = NS.PlayerActiveCache[PID].NAME
+	-- : find player name (if possible)
+	local playerToken, player = NS.GetPlayerTokens("target")
+	if NS.PlayersOnBars[playerToken] then
+		--: kos player?
+		if NS.KosList[playerToken] then
+			--: KOS player
+			weizPVP_CrosshairFrame.FourArrowsKOS.FadeIn:Play()
+			weizPVP_CrosshairFrame.FourArrowsKOS.Rotate:Play()
+			weizPVP_CrosshairFrame.FourArrows:Hide()
+			weizPVP_CrosshairFrame.FourArrowsKOS:Show()
+			return true
+		else
+			--: normal player
+			weizPVP_CrosshairFrame.FourArrows.FadeIn:Play()
+			weizPVP_CrosshairFrame.FourArrows.Rotate:Play()
+			weizPVP_CrosshairFrame.FourArrows:Show()
+			weizPVP_CrosshairFrame.FourArrowsKOS:Hide()
+			return false
 		end
-	end
-
-	--: found player?
-	if player and not issecretvalue(player) and NS.KosList[player] then
-		--: KOS player
-		weizPVP_CrosshairFrame.FourArrowsKOS.FadeIn:Play()
-		weizPVP_CrosshairFrame.FourArrowsKOS.Rotate:Play()
-		weizPVP_CrosshairFrame.FourArrows:Hide()
-		weizPVP_CrosshairFrame.FourArrowsKOS:Show()
-		return true
-	else
-		--: normal player
-		weizPVP_CrosshairFrame.FourArrows.FadeIn:Play()
-		weizPVP_CrosshairFrame.FourArrows.Rotate:Play()
-		weizPVP_CrosshairFrame.FourArrows:Show()
-		weizPVP_CrosshairFrame.FourArrowsKOS:Hide()
-		return false
 	end
 end
 

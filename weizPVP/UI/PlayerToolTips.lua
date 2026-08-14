@@ -20,21 +20,21 @@ local roleIcons = {
 }
 
 --> Show Player Tooltip <--------------------------------------------
-function NS.ShowPlayerTooltip(PID)
+function NS.ShowPlayerTooltip(playerToken)
 	if not NS.Options.Frames.PlayerTooltips then
 		NS.HidePlayerTooltip()
 		return
 	end
-	if PID and NS.PlayerActiveCache[PID] then
+	if playerToken and NS.PlayerActiveCache[playerToken] then
 		-- Has Real Name?
 		local formattedName, NAME, realm
-		if NS.PlayerActiveCache[PID].NAME then
+		if NS.PlayerActiveCache[playerToken].NAME then
 			-- Get player info
-			NAME = NS.PlayerActiveCache[PID].NAME
+			NAME = NS.PlayerActiveCache[playerToken].name
 			local name, realmName = strsplit("-", NAME)
 			formattedName = gsub(NAME, "-(.*)", "")
-			NS.PlayerActiveCache[PID].displayName = formattedName
-			realmName = NS.PlayerActiveCache[PID].Realm
+			NS.PlayerActiveCache[playerToken].displayName = formattedName
+			realmName = NS.PlayerActiveCache[playerToken].realm
 
 			-- Realm
 			if not realmName then
@@ -44,18 +44,18 @@ function NS.ShowPlayerTooltip(PID)
 			end
 		else
 			-- Get player info
-			NS.PlayerActiveCache[PID].displayName = NS.PlayerActiveCache[PID].Name
-			formattedName = NS.PlayerActiveCache[PID].Name
-			realm = NS.PlayerActiveCache[PID].Realm
+			NS.PlayerActiveCache[playerToken].displayName = NS.PlayerActiveCache[playerToken].name
+			formattedName = NS.PlayerActiveCache[playerToken].name
+			realm = NS.PlayerActiveCache[playerToken].realm
 		end
 
-		local class = NS.PlayerActiveCache[PID].C
-		local estimated = NS.PlayerActiveCache[PID].E
-		local race = NS.PlayerActiveCache[PID].RC or nil
-		local level = NS.FormatLevelString(estimated, NS.PlayerActiveCache[PID].L)
+		local class = NS.PlayerActiveCache[playerToken].C
+		local estimated = NS.PlayerActiveCache[playerToken].E
+		local race = NS.PlayerActiveCache[playerToken].RC or nil
+		local level = NS.FormatLevelString(estimated, NS.PlayerActiveCache[playerToken].L)
 
 		-- Guild
-		local guild = NS.PlayerActiveCache[PID].displayGuild or NS.PlayerActiveCache[PID].G or nil
+		local guild = NS.PlayerActiveCache[playerToken].displayGuild or NS.PlayerActiveCache[playerToken].G or nil
 		if (not guild) and (not estimated) or (guild == "") then
 			guild = "|c44999999[no guild]|r "
 		elseif not guild then
@@ -65,7 +65,7 @@ function NS.ShowPlayerTooltip(PID)
 		end
 
 		-- Role
-		local role = NS.PlayerActiveCache[PID].RL or nil
+		local role = NS.PlayerActiveCache[playerToken].RL or nil
 		local roleIcon
 		if role then
 			roleIcon = roleIcons[role]

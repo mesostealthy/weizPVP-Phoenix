@@ -268,16 +268,8 @@ local function Validate_Player(player)
 		end
 	end
 
-	-- : calculate stuff
-	if classID and raceID then
-		-- : calculate ID's
-		local classPID = classID * 65536
-		local corePID = (raceID * 16777216) + classPID
-		return corePID
-	end
-
-	-- : failed
-	return 0
+	-- : finished
+	return 1
 end
 
 --> Optimize Database <----------------------------------------------

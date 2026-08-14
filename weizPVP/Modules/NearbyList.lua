@@ -32,34 +32,34 @@ local tempInactiveList = {}
 local tempInactiveDeadList = {}
 function NS.SortNearbyList()
 	--: ActiveList
-	for PID in pairs(NS.ActiveList) do
-		if NS.NearbyList[PID] then
-			if NS.NearbyList[PID].TimeAdded then
-				tinsert(tempActiveList, { PID = PID, time = NS.NearbyList[PID].TimeAdded })
+	for playerToken in pairs(NS.ActiveList) do
+		if NS.NearbyList[playerToken] then
+			if NS.NearbyList[playerToken].TimeAdded then
+				tinsert(tempActiveList, { playerToken = playerToken, time = NS.NearbyList[playerToken].TimeAdded })
 			end
 		end
 	end
 	--: ActiveDeadList
-	for PID in pairs(NS.ActiveDeadList) do
-		if NS.NearbyList[PID] then
-			if NS.NearbyList[PID].TimeAdded then
-				tinsert(tempActiveDeadList, { PID = PID, time = NS.NearbyList[PID].TimeAdded })
+	for playerToken in pairs(NS.ActiveDeadList) do
+		if NS.NearbyList[playerToken] then
+			if NS.NearbyList[playerToken].TimeAdded then
+				tinsert(tempActiveDeadList, { playerToken = playerToken, time = NS.NearbyList[playerToken].TimeAdded })
 			end
 		end
 	end
 	--: InactiveDeadList
-	for PID in pairs(NS.InactiveDeadList) do
-		if NS.NearbyList[PID] then
-			if NS.NearbyList[PID].TimeAdded then
-				tinsert(tempInactiveDeadList, { PID = PID, time = NS.NearbyList[PID].TimeAdded })
+	for playerToken in pairs(NS.InactiveDeadList) do
+		if NS.NearbyList[playerToken] then
+			if NS.NearbyList[playerToken].TimeAdded then
+				tinsert(tempInactiveDeadList, { playerToken = playerToken, time = NS.NearbyList[playerToken].TimeAdded })
 			end
 		end
 	end
 	--: InactiveList
-	for PID in pairs(NS.InactiveList) do
-		if NS.NearbyList[PID] then
-			if NS.NearbyList[PID].TimeAdded then
-				tinsert(tempInactiveList, { PID = PID, time = NS.NearbyList[PID].TimeAdded })
+	for playerToken in pairs(NS.InactiveList) do
+		if NS.NearbyList[playerToken] then
+			if NS.NearbyList[playerToken].TimeAdded then
+				tinsert(tempInactiveList, { playerToken = playerToken, time = NS.NearbyList[playerToken].TimeAdded })
 			end
 		end
 	end
@@ -88,28 +88,28 @@ function NS.SortNearbyList()
 			return a.time < b.time
 		end
 	)
-	--: create PID list
-	for PID,info in pairs(tempActiveList) do
-		if NS.PlayerActiveCache[info.PID] then
-			if not issecretvalue(NS.PlayerActiveCache[info.PID].fullName) then
-				if NS.KosList[NS.PlayerActiveCache[info.PID].fullName] then
+	--: create playerToken list
+	for playerToken,info in pairs(tempActiveList) do
+		if NS.PlayerActiveCache[info.playerToken] then
+			if not issecretvalue(NS.PlayerActiveCache[info.playerToken].fullName) then
+				if NS.KosList[NS.PlayerActiveCache[info.playerToken].fullName] then
 					tinsert(tempCurrentList, info)
-					tempActiveList[PID] = nil
+					tempActiveList[playerToken] = nil
 				end
 			end
 		end
 	end
-	for PID in pairs(tempActiveList) do
-		tinsert(tempCurrentList, tempActiveList[PID])
+	for playerToken in pairs(tempActiveList) do
+		tinsert(tempCurrentList, tempActiveList[playerToken])
 	end
-	for PID in pairs(tempActiveDeadList) do
-		tinsert(tempCurrentList, tempActiveDeadList[PID])
+	for playerToken in pairs(tempActiveDeadList) do
+		tinsert(tempCurrentList, tempActiveDeadList[playerToken])
 	end
-	for PID in pairs(tempInactiveList) do
-		tinsert(tempCurrentList, tempInactiveList[PID])
+	for playerToken in pairs(tempInactiveList) do
+		tinsert(tempCurrentList, tempInactiveList[playerToken])
 	end
-	for PID in pairs(tempInactiveDeadList) do
-		tinsert(tempCurrentList, tempInactiveDeadList[PID])
+	for playerToken in pairs(tempInactiveDeadList) do
+		tinsert(tempCurrentList, tempInactiveDeadList[playerToken])
 	end
 	NS.CurrentList = CopyTable(tempCurrentList)
 	wipe(tempCurrentList)
