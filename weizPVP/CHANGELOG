@@ -1,2 +1,2 @@
-v3.2.1.1:
--BUGFIXES: More and more LUA errors fixed, probably still some left! Please be patient!
+v3.2.1.2:
+-BUGFIX: Crosshair secret data processed properly.

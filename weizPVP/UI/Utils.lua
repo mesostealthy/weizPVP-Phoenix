@@ -4,11 +4,10 @@
 local _, NS = ...
 
 --: 🆙 Upvalues :----------------------
-local gsub = gsub
+local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
+local C_ColorUtil_WrapTextInColor = C_ColorUtil.WrapTextInColor
+local gsub, select = gsub, select
 local string_find = string.find
-local WrapTextInColorCode = C_ColorUtil.WrapTextInColorCode
-local GetClassColor = GetClassColor
-local select = select
 
 --> GET Frame Position <---------------------------------------------
 local function GetFramePosition(frame)
@@ -66,8 +65,8 @@ function NS.FormatPlayerNameAndRealm(playerToken)
 	end
 
 	-- : finalize name / realm with colors
-	local _, _, _, classColor = GetClassColor(NS.PlayerActiveCache[playerToken].C)
-	local charNameAndRealm = WrapTextInColorCode(NS.PlayerActiveCache[playerToken].name, classColor)
+	local classColor = C_ClassColor_GetClassColor(NS.PlayerActiveCache[playerToken].C)
+	local charNameAndRealm = C_ColorUtil_WrapTextInColor(NS.PlayerActiveCache[playerToken].name, classColor)
 	charNameAndRealm = charNameAndRealm .. " |cffbbbbbb-|r " .. NS.ColorsLUT["realm"]:WrapTextInColorCode(NS.PlayerActiveCache[playerToken].realm)
 	return charNameAndRealm
 end

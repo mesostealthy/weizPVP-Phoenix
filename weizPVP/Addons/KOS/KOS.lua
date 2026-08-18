@@ -5,11 +5,10 @@
 local _, NS = ...
 
 -- : 🆙 Upvalues :----------------------
-local gsub = gsub
-local select = select
+local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
+local C_ColorUtil_WrapTextInColor = C_ColorUtil.WrapTextInColor
+local gsub, select = gsub, select
 local issecretvalue = issecretvalue
-local GetClassColor = GetClassColor
-local WrapTextInColorCode = C_ColorUtil.WrapTextInColorCode
 
 -- : NAMESPACE :------------------------
 NS.KOS = {}
@@ -35,7 +34,8 @@ function NS.KOS.ChangeKosStatus(playerName)
 	end
 	local unescapedName = NS.Unescape(playerName)
 	NS.KOS.menuPlayerName = unescapedName
-	local printedName = WrapTextInColorCode(gsub(unescapedName, "-(.*)", ""), select(4, GetClassColor(NS.PlayerDB[unescapedName].C)))
+	local classColor = C_ClassColor_GetClassColor(NS.PlayerDB[unescapedName].C)
+	local printedName = C_ColorUtil_WrapTextInColor(gsub(unescapedName, "-(.*)", ""), classColor)
 	local printedRealm = gsub(unescapedName, "^(.*-)", "")
 	if NS.KosList[NS.KOS.menuPlayerName] then
 		NS.KOS.RemovePlayer(NS.KOS.menuPlayerName)

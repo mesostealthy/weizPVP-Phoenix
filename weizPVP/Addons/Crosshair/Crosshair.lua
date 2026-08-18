@@ -24,6 +24,7 @@ local issecretvalue = issecretvalue
 local UnitClassBase = UnitClassBase
 local DISABLED_FONT_COLOR = DISABLED_FONT_COLOR
 local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
+local C_ColorUtil_WrapTextInColor = C_ColorUtil.WrapTextInColor
 local InCombatLockdown, UIFrameFadeIn = InCombatLockdown, UIFrameFadeIn
 local IsItemInRange, IsFlying, IsUsableItem = IsItemInRange, IsFlying, IsUsableItem
 local UnitIsConnected, UnitIsHumanPlayer, UnitIsUnit = UnitIsConnected, UnitIsHumanPlayer, UnitIsUnit
@@ -250,8 +251,8 @@ local function RefreshNameText(unit)
 		end
 
 		-- : setup class color
-		local className = UnitClassBase("target")
-		local charName = WrapTextInColorCode(displayName, select(4, GetClassColor(className)))
+		local classColor = C_ClassColor_GetClassColor(UnitClassBase("target"))
+		local charName = C_ColorUtil_WrapTextInColor(displayName, classColor)
 		if nameFooter then
 			-- : add name footer
 			charName = charName .. nameFooter

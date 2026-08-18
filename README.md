@@ -12,7 +12,7 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.2.1.1:
+v3.2.1.2:
 
-\-BUGFIXES: More and more LUA errors fixed, probably still some left! Please be patient!
+\-BUGFIX: Crosshair secret data processed properly.
 

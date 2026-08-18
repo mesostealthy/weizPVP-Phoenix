@@ -4,12 +4,10 @@
 local _, NS = ...
 
 --: 🆙 Upvalues :----------------------
-local gsub = gsub
+local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
+local C_ColorUtil_WrapTextInColor = C_ColorUtil.WrapTextInColor
+local gsub, select, wipe = gsub, select, wipe
 local issecretvalue = issecretvalue
-local GetClassColor = GetClassColor
-local WrapTextInColorCode = C_ColorUtil.WrapTextInColorCode
-local select = select
-local wipe = wipe
 
 local menuPlayerID = ""
 local info = {}
@@ -20,10 +18,8 @@ function weizPVP_PlayerBarMenu_OnLoad()
 		return
 	end
 	-- NAME
-	local printedName = WrapTextInColorCode(
-		gsub(NS.KOS.menuPlayerName, "-(.*)", ""),
-		select(4, GetClassColor(NS.KOS.menuPlayerClass))
-	)
+	local classColor = C_ClassColor_GetClassColor(NS.KOS.menuPlayerClass)
+	local printedName = C_ColorUtil_WrapTextInColor(gsub(NS.KOS.menuPlayerName, "-(.*)", ""), classColor)
 	local printedRealm = gsub(NS.KOS.menuPlayerName, "^(.*-)", "")
 	info.text = printedName .. " |cffbbbbbb-|r |cffdddddd" .. printedRealm .. "|r"
 	info.notCheckable = 1

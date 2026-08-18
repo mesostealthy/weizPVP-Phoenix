@@ -6,8 +6,7 @@ local _, NS = ...
 
 --: 🆙 Upvalues :----------------------
 local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
-local WrapTextInColor = C_ColorUtil.WrapTextInColor
-local GetClassColor = GetClassColor
+local C_ColorUtil_WrapTextInColor = C_ColorUtil.WrapTextInColor
 local issecretvalue = issecretvalue
 local select = select
 local strsplit = strsplit
@@ -92,9 +91,9 @@ function NS.ShowPlayerTooltip(playerToken)
 		if not issecretvalue(NAME) and NS.KosList[NAME] then
 			titleLeft = titleLeft ..
 				"|TInterface/Addons/weizPVP/Media/Icons/kos.tga:0|t |cFFFF0040>|r" ..
-				WrapTextInColor(formattedName .. "|cFFFF0040<|r", classColor)
+				C_ColorUtil_WrapTextInColor(formattedName .. "|cFFFF0040<|r", classColor)
 		else
-			titleLeft = titleLeft .. WrapTextInColor(formattedName .. " ", classColor)
+			titleLeft = titleLeft .. C_ColorUtil_WrapTextInColor(formattedName .. " ", classColor)
 		end
 
 		-- * Level Format
