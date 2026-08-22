@@ -4,7 +4,7 @@
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
 
---: ⬆️ Upvalues :--
+-- : ⬆️ Upvalues :--
 local CopyTable = CopyTable
 local issecretvalue = issecretvalue
 local tinsert, sort, wipe = tinsert, sort, wipe
@@ -31,7 +31,7 @@ local tempActiveDeadList = {}
 local tempInactiveList = {}
 local tempInactiveDeadList = {}
 function NS.SortNearbyList()
-	--: ActiveList
+	-- : ActiveList
 	for playerToken in pairs(NS.ActiveList) do
 		if NS.NearbyList[playerToken] then
 			if NS.NearbyList[playerToken].TimeAdded then
@@ -39,7 +39,7 @@ function NS.SortNearbyList()
 			end
 		end
 	end
-	--: ActiveDeadList
+	-- : ActiveDeadList
 	for playerToken in pairs(NS.ActiveDeadList) do
 		if NS.NearbyList[playerToken] then
 			if NS.NearbyList[playerToken].TimeAdded then
@@ -47,7 +47,7 @@ function NS.SortNearbyList()
 			end
 		end
 	end
-	--: InactiveDeadList
+	-- : InactiveDeadList
 	for playerToken in pairs(NS.InactiveDeadList) do
 		if NS.NearbyList[playerToken] then
 			if NS.NearbyList[playerToken].TimeAdded then
@@ -55,7 +55,7 @@ function NS.SortNearbyList()
 			end
 		end
 	end
-	--: InactiveList
+	-- : InactiveList
 	for playerToken in pairs(NS.InactiveList) do
 		if NS.NearbyList[playerToken] then
 			if NS.NearbyList[playerToken].TimeAdded then
@@ -63,32 +63,28 @@ function NS.SortNearbyList()
 			end
 		end
 	end
-	--: sorts
-	sort(
-	tempActiveList,
+	-- : sorts
+	sort(tempActiveList,
 		function(a, b)
 			return a.time < b.time
 		end
 	)
-	sort(
-	tempActiveDeadList,
+	sort(tempActiveDeadList,
 		function(a, b)
 			return a.time < b.time
 		end
 	)
-	sort(
-	tempInactiveList,
+	sort(tempInactiveList,
 		function(a, b)
 			return a.time < b.time
 		end
 	)
-	sort(
-	tempInactiveDeadList,
+	sort(tempInactiveDeadList,
 		function(a, b)
 			return a.time < b.time
 		end
 	)
-	--: create playerToken list
+	-- : create playerToken list
 	for playerToken,info in pairs(tempActiveList) do
 		if NS.PlayerActiveCache[info.playerToken] then
 			if not issecretvalue(NS.PlayerActiveCache[info.playerToken].fullName) then

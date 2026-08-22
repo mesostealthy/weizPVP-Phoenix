@@ -170,6 +170,7 @@ Options.KOS = {
 	SoundChannel = "Master",
 	AudioAlertFile = "weizPVP: Warning 2",
 	ChatAlert = true,
+	PopupAlert = false,
 	TaskbarAlert = true
 }
 

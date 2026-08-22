@@ -12,7 +12,11 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.2.1.2:
+v3.2.2.1:
 
-\-BUGFIX: Crosshair secret data processed properly.
+\-KOS: Can now properly add / remove players from KOS with Right Click menu.
+
+\-KOS Alert: This will popup an alert message when a KOS player is detected. (Off by default)
+
+\-Hunters, Mages, Rogues \& Warlocks auto set to DAMAGER roles since they have no other roles.
 

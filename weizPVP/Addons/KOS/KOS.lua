@@ -32,11 +32,10 @@ function NS.KOS.ChangeKosStatus(playerName)
 	if not playerName or issecretvalue(playerName) then
 		return
 	end
-	local unescapedName = NS.Unescape(playerName)
-	NS.KOS.menuPlayerName = unescapedName
-	local classColor = C_ClassColor_GetClassColor(NS.PlayerDB[unescapedName].C)
-	local printedName = C_ColorUtil_WrapTextInColor(gsub(unescapedName, "-(.*)", ""), classColor)
-	local printedRealm = gsub(unescapedName, "^(.*-)", "")
+	NS.KOS.menuPlayerName = playerName
+	local classColor = C_ClassColor_GetClassColor(NS.KOS.menuPlayerClass)
+	local printedName = C_ColorUtil_WrapTextInColor(gsub(playerName, "-(.*)", ""), classColor)
+	local printedRealm = gsub(playerName, "^(.*-)", "")
 	if NS.KosList[NS.KOS.menuPlayerName] then
 		NS.KOS.RemovePlayer(NS.KOS.menuPlayerName)
 		NS.PrintAddonMessage(

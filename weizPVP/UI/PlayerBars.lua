@@ -22,7 +22,7 @@ function NS.CoreUI.BuildBars()
 	for k = 1, NS.Options.Bars.MaxNumBars do
 		NS.CoreUI.Bar[k] = NS.CoreUI.Bar[k] or CreateFrame("StatusBar", "weizPVP_PlayerBar" .. k, weizPVP_CoreFrame.ScrollFrame.ListFrame)
 		NS.CoreUI.Bar[k].id = k
-		NS.CoreUI.Bar[k].NAME = ""
+		NS.CoreUI.Bar[k].PT = nil
 		NS.CoreUI.Bar[k].displayGuild = ""
 		NS.CoreUI.Bar[k].displayName = ""
 		NS.CoreUI.Bar[k]:SetHeight(NS.Options.Bars.RowHeight)
@@ -155,12 +155,12 @@ end
 
 --> PLAYER BAR: PRE-CLICK <------------------------------------------
 function NS.CoreUI.ButtonPreClick(barID, MouseButton)
-	if not NS.CoreUI.Bar[barID].NAME then
+	if not NS.CoreUI.Bar[barID].PT then
 		return
 	end
-	local playerName = NS.CoreUI.Bar[barID].NAME
+	local playerToken = NS.CoreUI.Bar[barID].PT
 	UIFrameFadeIn(NS.CoreUI.Bar[barID].Highlight, 0.05, 0.15, 0.3)
-	if playerName then
+	if playerToken then
 		if MouseButton == "LeftButton" then
 			-- : TARGET MACRO
 			NS.SetBarTargetMacrotext(barID)

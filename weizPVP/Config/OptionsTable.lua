@@ -1285,6 +1285,19 @@ local kosGroup = {
 				NS.Options.KOS.ChatAlert = value
 			end
 		},
+		PopupAlert = {
+			type = "toggle",
+			name = "|TInterface/Addons/weizPVP/Media/Icons/popup.tga:16|t Popup alert",
+			desc = "Pops up a messsage at the top of your screen when a KOS list is first found (only you will see this)",
+			width = "full",
+			order = 5,
+			get = function()
+				return NS.Options.KOS.PopupAlert
+			end,
+			set = function(_, value)
+				NS.Options.KOS.PopupAlert = value
+			end
+		},
 		TaskbarAlert = {
 			type = "toggle",
 			name = "|TInterface/Addons/weizPVP/Media/Icons/flash.tga:16|t  Flash the taskbar icon on KOS detect",

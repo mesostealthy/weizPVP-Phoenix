@@ -3,7 +3,7 @@
 -- 📌 Manages the name plates of players
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
-weizNS = NS
+--weizNS = NS
 
 -- : Libraries :------------------------
 local RAC = LibStub("LibRaces-1.0")
@@ -134,6 +134,12 @@ end
 
 --|> get role for unit
 local function GetRoleForUnit(unitToken, classToken)
+	-- : secret values?
+	if issecretvalue(unitToken) or issecretvalue(classToken) then
+		-- : failed
+		return nil
+	end
+
 	-- : only dps?
 	if ALWAYS_DPS[classToken] then
 		return "DAMAGER"
@@ -165,6 +171,12 @@ local function UpdateNamePlateSpecialization()
 		return
 	end
 
+	-- : no frame yet?
+	if not weizFrame or not weizFrame.Text then
+		-- : finished
+		return
+	end
+
 	-- : sanity checks
 	local namePlate = GetNamePlateForUnit("target")
 	if namePlate then
@@ -173,8 +185,7 @@ local function UpdateNamePlateSpecialization()
 		local eCache = NS.EnemyPC[playerToken]
 		if eCache and eCache.talentSpec then
 			-- : show
-			local textWidget = weizFrame.Text
-			textWidget:SetText(eCache.talentSpec)
+			weizFrame.Text:SetText(eCache.talentSpec)
 			weizFrame:SetPoint("CENTER", namePlate, "CENTER", 0, -15)
 			weizFrame:Show()
 			return
@@ -207,10 +218,34 @@ local function RefreshUnitData(unitToken)
 			NS.NPC[player].C, NS.NPC[player].CID = UnitClassBase(unitToken)
 			NS.NPC[player].L = UnitLevel(unitToken)
 			NS.NPC[player].RC, _, NS.NPC[player].RID = UnitRace(unitToken)
+			NS.NPC[player].RL = GetRoleForUnit(unitToken, NS.NPC[player].C)
 			NS.NPC[player].name = name
 			NS.NPC[player].realm = realm
 			NS.NPC[player].player = player
 			NS.NPC[player].PT = playerToken
+
+			-- : has instance content info?
+			local eCache = NS.EnemyPC[playerToken]
+			if eCache then
+				-- : valid faction?
+				if eCache.faction and not issecretvalue(eCache.faction) then
+					-- : update
+					NS.NPC[player].F = eCache.faction
+				end
+
+				-- : valid class token?
+				if eCache.classToken and not issecretvalue(eCache.classToken) then
+					-- : update
+					NS.NPC[player].C = eCache.classToken
+					NS.NPC[player].RL = GetRoleForUnit(unitToken, eCache.classToken)
+				end
+
+				-- : valid race name?
+				if eCache.raceName and not issecretvalue(eCache.raceName) then
+					-- : update
+					NS.NPC[player].RN = eCache.raceName
+				end
+			end
 		end
 
 		-- : update stuff
@@ -245,6 +280,7 @@ function NS.UpdateNamePlateUnit(unitToken)
 	-- : not valid unit?
 	if not IsValidUnitToken(unitToken) then
 		-- : finished
+		UpdateNamePlateSpecialization()
 		return
 	end
 
@@ -366,13 +402,22 @@ local function UpdateBattlefieldScore()
 		-- : get info
 		local info = GetScoreInfo(i)
 		if info and info.name then
+			-- : force name-realm format
+			local player = info.name
+			if (not strmatch(player, "-")) then
+				-- add realm name
+				player = player .. "-" .. NS.PlayerRealm
+			end
+
 			-- : matches player?
 			if info.faction == playerInfo.faction then
 				-- : friend
-				fCache[info.name] = info
+				fCache[player] = info
+				fCache[player].RL = ALWAYS_DPS[info.classToken]
 			else
 				-- : enemy
-				eCache[info.name] = info
+				eCache[player] = info
+				eCache[player].RL = ALWAYS_DPS[info.classToken]
 			end
 		end
 	end
@@ -452,14 +497,20 @@ end
 
 --|> create weizFrame (for specialization text)
 local function weizFrame_Create()
-	-- : create / setup frame
-	weizFrame = weizFrame or CreateFrame("Frame", nil, UIParent)
-	weizFrame:SetSize(150, 20)
-	weizFrame:ClearAllPoints()
-	weizFrame.Text = weizFrame:CreateFontString(nil, "OVERLAY")
-	weizFrame.Text:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 12, "OUTLINE")
-	weizFrame.Text:SetAllPoints()
-	weizFrame.Text:SetTextColor(1, 1, 1, 1)
+	-- : not created?
+	if not weizFrame then
+		-- : create / setup
+		weizFrame = CreateFrame("Frame", nil, UIParent)
+		weizFrame:SetSize(150, 20)
+		weizFrame:ClearAllPoints()
+		weizFrame.Text = weizFrame:CreateFontString(nil, "OVERLAY")
+		weizFrame.Text:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 12, "OUTLINE")
+		weizFrame.Text:SetAllPoints()
+		weizFrame.Text:SetTextColor(1, 1, 1, 1)
+	end
+
+	-- : hide initially
+	weizFrame:Hide()
 end
 
 --|> pulse update

@@ -44,28 +44,28 @@ local function CreateAlertFrame()
 	NS.AlertFrame.LeftFade:SetPoint("BOTTOMRIGHT", NS.AlertFrame, "BOTTOMLEFT")
 	NS.AlertFrame.LeftFade:SetColorTexture(0, 0, 0, 1)
 	NS.AlertFrame.LeftFade:SetGradient("HORIZONTAL", CreateColor(0, 0, 0, 0), CreateColor(0, 0, 0, 0.6))
-	-- PlayerNameText
-	NS.AlertFrame.PlayerNameText = NS.AlertFrame.PlayerNameText or NS.AlertFrame:CreateFontString(nil, "OVERLAY")
-	NS.AlertFrame.PlayerNameText:SetPoint("RIGHT", NS.AlertFrame, "RIGHT")
-	NS.AlertFrame.PlayerNameText:SetFont(SM:Fetch("font", "Roboto Condensed Bold"), 20, "OUTLINE")
-	NS.AlertFrame.PlayerNameText:SetJustifyH("LEFT")
+	-- playerText
+	NS.AlertFrame.playerText = NS.AlertFrame.playerText or NS.AlertFrame:CreateFontString(nil, "OVERLAY")
+	NS.AlertFrame.playerText:SetPoint("RIGHT", NS.AlertFrame, "RIGHT")
+	NS.AlertFrame.playerText:SetFont(SM:Fetch("font", "Roboto Condensed Bold"), 20, "OUTLINE")
+	NS.AlertFrame.playerText:SetJustifyH("LEFT")
 	-- div
 	NS.AlertFrame.div = NS.AlertFrame.div or NS.AlertFrame:CreateFontString(nil, "OVERLAY")
-	NS.AlertFrame.div:SetPoint("RIGHT", NS.AlertFrame.PlayerNameText, "LEFT")
+	NS.AlertFrame.div:SetPoint("RIGHT", NS.AlertFrame.playerText, "LEFT")
 	NS.AlertFrame.div:SetFont(SM:Fetch("font", "Roboto Condensed Bold"), 20, "OUTLINE")
 	NS.AlertFrame.div:SetJustifyH("CENTER")
 	NS.AlertFrame.div:SetTextColor(0.7, 0.7, 0.7, 1)
 	NS.AlertFrame.div:SetText(" : ")
-	-- EventText
-	NS.AlertFrame.EventText = NS.AlertFrame.EventText or NS.AlertFrame:CreateFontString(nil, "OVERLAY")
-	NS.AlertFrame.EventText:SetPoint("RIGHT", NS.AlertFrame.div, "LEFT", 0, 0)
-	NS.AlertFrame.EventText:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 20, "OUTLINE")
-	NS.AlertFrame.EventText:SetJustifyH("LEFT")
-	NS.AlertFrame.EventText:SetTextColor(1, 0.3, 0.9, 1)
+	-- eventText
+	NS.AlertFrame.eventText = NS.AlertFrame.eventText or NS.AlertFrame:CreateFontString(nil, "OVERLAY")
+	NS.AlertFrame.eventText:SetPoint("RIGHT", NS.AlertFrame.div, "LEFT", 0, 0)
+	NS.AlertFrame.eventText:SetFont(SM:Fetch("font", "Roboto Condensed BoldItalic"), 20, "OUTLINE")
+	NS.AlertFrame.eventText:SetJustifyH("LEFT")
+	NS.AlertFrame.eventText:SetTextColor(1, 0.3, 0.9, 1)
 	-- ICON
 	NS.AlertFrame.Icon = NS.AlertFrame.Icon or NS.AlertFrame:CreateTexture(nil, "OVERLAY")
-	NS.AlertFrame.Icon:SetPoint("RIGHT", NS.AlertFrame.EventText, "LEFT", -8, 0)
-	NS.AlertFrame:SetHeight(NS.AlertFrame.EventText:GetTop() - NS.AlertFrame.PlayerNameText:GetBottom() + 14)
+	NS.AlertFrame.Icon:SetPoint("RIGHT", NS.AlertFrame.eventText, "LEFT", -8, 0)
+	NS.AlertFrame:SetHeight(NS.AlertFrame.eventText:GetTop() - NS.AlertFrame.playerText:GetBottom() + 14)
 	NS.AlertFrame.Icon:SetSize(NS.AlertFrame:GetHeight(), NS.AlertFrame:GetHeight())
 
 	-- Animation
@@ -118,6 +118,38 @@ end
 --> Initialize Alerts <----------------------------------------------
 function NS.InitializeAlerts()
 	CreateAlertFrame()
+end
+
+--> KOS PopUp <--------------------------------------------------
+function NS.KOSPopUp(player, icon, text)
+	if (not NS.ZoneKnown) or NS.LoadingScreenActive then
+		C_Timer_After(0.2,
+			function()
+				NS.KOSPopUp(player, icon, text)
+			end
+		)
+		return
+	end
+
+	-- disable for sanctuary
+	if NS.Zone.pvpType == "sanctuary" then
+		return
+	end
+
+	if NS.AlertFrame.anim:IsPlaying() then
+		NS.AlertFrame.anim:Stop()
+	end
+	NS.AlertFrame.Icon:SetTexture(icon)
+	NS.AlertFrame.eventText:SetText(text .. " Detected")
+	NS.AlertFrame.playerText:SetText(player)
+	NS.AlertFrame:SetHeight(NS.AlertFrame.eventText:GetTop() - NS.AlertFrame.playerText:GetBottom() + 14)
+	NS.AlertFrame:SetWidth(
+		NS.AlertFrame.playerText:GetWidth() + NS.AlertFrame.eventText:GetWidth() + NS.AlertFrame.div:GetWidth() +
+		NS.AlertFrame:GetHeight()
+	)
+	NS.AlertFrame:SetPoint("TOP", UIParent, "CENTER", 0, UIParent:GetTop() / 3)
+	NS.AlertFrame.Icon:SetSize(NS.AlertFrame:GetHeight(), NS.AlertFrame:GetHeight())
+	NS.AlertFrame.anim:Play()
 end
 
 --> 🔊 Play Audio Alert <---------------------------------------------
@@ -182,5 +214,9 @@ function NS.KOSAlert(playerToken)
 			"|TInterface/Addons/weizPVP/Media/Icons/kos.tga::0|t " ..
 			NS.FormatPlayerNameAndRealm(playerToken) .. "|cff8fdaff detected!|r "
 		)
+	end
+	-- Popup Alert
+	if NS.Options.KOS.PopupAlert then
+		NS.KOSPopUp(playerToken, "Interface/Addons/weizPVP/Media/Icons/kos.tga", "KOS")
 	end
 end

@@ -25,28 +25,18 @@ function NS.ShowPlayerTooltip(playerToken)
 		NS.HidePlayerTooltip()
 		return
 	end
-	if playerToken and NS.PlayerActiveCache[playerToken] then
-		-- Has Real Name?
-		local formattedName, NAME, realm
-		if NS.PlayerActiveCache[playerToken].NAME then
-			-- Get player info
-			NAME = NS.PlayerActiveCache[playerToken].name
-			local name, realmName = strsplit("-", NAME)
-			formattedName = gsub(NAME, "-(.*)", "")
-			NS.PlayerActiveCache[playerToken].displayName = formattedName
-			realmName = NS.PlayerActiveCache[playerToken].realm
+	if playerToken and NS.PlayerActiveCache[playerToken] and NS.PlayerActiveCache[playerToken].name then
+		-- Get player info
+		local realm
+		local formattedName = gsub(NS.PlayerActiveCache[playerToken].name, "-(.*)", "")
+		NS.PlayerActiveCache[playerToken].displayName = formattedName
+		local realmName = NS.PlayerActiveCache[playerToken].realm
 
-			-- Realm
-			if not realmName then
-				realm = "|cff75e6ff" .. NS.Player.FromSubRealm .. "|r" -- blue for same realm
-			else
-				realm = "|cFFFF00CC" .. realmName .. "|r" -- bright purple for other realms
-			end
+		-- Realm
+		if not realmName then
+			realm = "|cff75e6ff" .. NS.Player.FromSubRealm .. "|r" -- blue for same realm
 		else
-			-- Get player info
-			NS.PlayerActiveCache[playerToken].displayName = NS.PlayerActiveCache[playerToken].name
-			formattedName = NS.PlayerActiveCache[playerToken].name
-			realm = NS.PlayerActiveCache[playerToken].realm
+			realm = "|cFFFF00CC" .. realmName .. "|r" -- bright purple for other realms
 		end
 
 		local class = NS.PlayerActiveCache[playerToken].C
@@ -80,15 +70,13 @@ function NS.ShowPlayerTooltip(playerToken)
 
 		-- : Build Title Left (Name, Level, Role)
 		local titleLeft = ""
-
-		-- * Add Role Icon, if we have one
 		if roleIcon then
 			titleLeft = titleLeft .. roleIcon .. " "
 		end
 
 		-- * KOS check
 		local classColor = C_ClassColor_GetClassColor(class)
-		if not issecretvalue(NAME) and NS.KosList[NAME] then
+		if NS.KosList[playerToken] then
 			titleLeft = titleLeft ..
 				"|TInterface/Addons/weizPVP/Media/Icons/kos.tga:0|t |cFFFF0040>|r" ..
 				C_ColorUtil_WrapTextInColor(formattedName .. "|cFFFF0040<|r", classColor)

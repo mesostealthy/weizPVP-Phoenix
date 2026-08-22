@@ -9,9 +9,7 @@ local issecretvalue = issecretvalue
 local GetGuildInfo, GetUnitName = GetGuildInfo, GetUnitName
 local UnitClassBase, UnitLevel, UnitRace = UnitClassBase, UnitLevel, UnitRace
 local UnitFactionGroup, UnitGUID, UnitName = UnitFactionGroup, UnitGUID, UnitName
-local select = select
-local gsub = gsub
-local time = time
+local gsub, select, time = gsub, select, time
 
 --> AddNewPlayer <---------------------------------------------------
 -- : Updates data in the PlayerActiveCache
@@ -45,6 +43,7 @@ function NS.UpdatePlayerActiveCache(NPC, unitToken, dead)
 		NS.PlayerActiveCache[playerToken].G = NPC.G
 		NS.PlayerActiveCache[playerToken].L = NPC.L
 		NS.PlayerActiveCache[playerToken].RC = NPC.RC
+		NS.PlayerActiveCache[playerToken].RL = NPC.RL
 		NS.PlayerActiveCache[playerToken].RID = NPC.RID
 		NS.PlayerActiveCache[playerToken].name = NPC.name
 		NS.PlayerActiveCache[playerToken].realm = NPC.realm

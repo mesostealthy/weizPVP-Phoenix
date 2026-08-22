@@ -229,15 +229,15 @@ function NS.SetBarTargetMacrotext(barID, playerToken)
 	-- : not in combat lockdown?
 	if not InCombatLockdown() then
 		-- : found bar?
-		local NAME = nil
+		local name = nil
 		local macrotext = nil
 		local bar = NS.CoreUI.Bar[barID]
 		if bar and bar.playerToken then
 			-- : has macro text?
 			local data = NS.PlayerActiveCache[bar.playerToken]
-			if data and data.macrotext then
+			if data and data.name and data.macrotext then
 				-- : found
-				NAME = data.NAME
+				name = data.name
 				macrotext = data.macrotext
 			end
 		end
@@ -252,7 +252,7 @@ function NS.SetBarTargetMacrotext(barID, playerToken)
 				bar.Button:SetAttribute("type1", "macro")
 				bar.Button:SetAttribute("macrotext1", macrotext)
 				bar.Button:EnableMouse(true)
-				bar.Target = NAME
+				bar.Target = name
 			end
 		else
 			-- : disabled
@@ -276,6 +276,7 @@ local function UpdateBar(num, playerToken, Alpha, Health, Class, Guild, Level, E
 		--: SYNC INFO
 		NS.CoreUI.Bar[num].Class = Class
 		NS.CoreUI.Bar[num].playerToken = playerToken
+		NS.CoreUI.Bar[num].PT = playerToken
 		NS.PlayersOnBars[playerToken] = num
 
 		--: TARGET MACRO
@@ -348,7 +349,7 @@ end
 -- ⚒️ Update Player List
 -----------------------------------------------------------
 function NS.UpdatePlayerLists(playerToken, timeUpdate, dead, newPlayerOnList)
-	if not NS.Options.Bars then
+	if not NS.Options.Bars or issecretvalue(playerToken) then
 		return
 	end
 
@@ -372,8 +373,8 @@ function NS.UpdatePlayerLists(playerToken, timeUpdate, dead, newPlayerOnList)
 		reSortList = true
 
 		--: Alerts: KOS or 'New Detection'
-		if not issecretvalue(NS.PlayerActiveCache[playerToken].fullName) then
-			if NS.KosList[NS.PlayerActiveCache[playerToken].fullName] then
+		if NS.PlayerActiveCache[playerToken] then
+			if NS.KosList[playerToken] then
 				NS.KOSAlert(playerToken)
 			else
 				--: New player detected
