@@ -71,7 +71,8 @@ local targetClassColor = {}
 local function SetCrosshairColors()
 	targetClassColor = DISABLED_FONT_COLOR
 	if UnitIsConnected("target") then
-		targetClassColor = C_ClassColor_GetClassColor(UnitClassBase("target"))
+		local className = UnitClassBase("target")
+		targetClassColor = C_ClassColor_GetClassColor(className)
 		if not targetClassColor then
 			targetClassColor = DISABLED_FONT_COLOR
 		end
@@ -251,7 +252,8 @@ local function RefreshNameText(unit)
 		end
 
 		-- : setup class color
-		local classColor = C_ClassColor_GetClassColor(UnitClassBase("target"))
+		local className = UnitClassBase("target")
+		local classColor = C_ClassColor_GetClassColor(className)
 		local charName = C_ColorUtil_WrapTextInColor(displayName, classColor)
 		if nameFooter then
 			-- : add name footer

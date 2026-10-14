@@ -10,7 +10,7 @@ local wipe = wipe
 local C_Timer_After = C_Timer.After
 local IsInInstance = IsInInstance
 local GetZoneText = GetZoneText
-local GetZonePVPInfo = GetZonePVPInfo
+local GetZonePVPInfo = C_PvP.GetZonePVPInfo
 local GetAddOnMetadata = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
 local StaticPopup_Show = StaticPopup_Show
 

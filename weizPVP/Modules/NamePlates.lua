@@ -3,7 +3,7 @@
 -- 📌 Manages the name plates of players
 ---------------------------------------------------------------------------------------------------
 local _, NS = ...
---weizNS = NS
+weizNS = NS
 
 -- : Libraries :------------------------
 local RAC = LibStub("LibRaces-1.0")
