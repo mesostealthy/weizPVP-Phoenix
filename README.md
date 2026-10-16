@@ -12,9 +12,7 @@ You may know me as Mesostealthy from the Alterac Valley Maniacs! SO you know I h
 
 
 
-v3.2.2.5:
+v3.2.2.6:
 
-\-BUGFIX: Crosshair no longer throws lua errors.
-
-\-Updated TOC for v12.1.5.
+\-BUGFIX: Some API changed for range checking upon targeting for Crosshairs in World PvP.
 

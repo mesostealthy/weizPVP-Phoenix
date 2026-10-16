@@ -23,12 +23,13 @@ local select = select
 local issecretvalue = issecretvalue
 local UnitClassBase = UnitClassBase
 local DISABLED_FONT_COLOR = DISABLED_FONT_COLOR
+local C_Item_IsUsableItem = C_Item.IsUsableItem
+local C_Item_IsItemInRange = C_Item.IsItemInRange
 local C_ClassColor_GetClassColor = C_ClassColor.GetClassColor
 local C_ColorUtil_WrapTextInColor = C_ColorUtil.WrapTextInColor
 local InCombatLockdown, UIFrameFadeIn = InCombatLockdown, UIFrameFadeIn
-local IsItemInRange, IsFlying, IsUsableItem = IsItemInRange, IsFlying, IsUsableItem
 local UnitIsConnected, UnitIsHumanPlayer, UnitIsUnit = UnitIsConnected, UnitIsHumanPlayer, UnitIsUnit
-local UnitClassBase, UnitIsFriend = UnitClassBase, UnitIsFriend
+local IsFlying, UnitClassBase, UnitIsFriend = IsFlying, UnitClassBase, UnitIsFriend
 local GetNamePlateForUnit = C_NamePlate.GetNamePlateForUnit
 local NewTicker = C_Timer.NewTicker
 
@@ -147,7 +148,7 @@ end
 
 local function IsNetUsable()
 	if (InCombatLockdown() == true) then return false end
-	return (IsFlying("target") and IsItemInRange("Net-o-Matic 5000", "target") and IsUsableItem("Net-o-Matic 5000"))
+	return (IsFlying("target") and C_Item_IsItemInRange("Net-o-Matic 5000", "target") and C_Item_IsUsableItem("Net-o-Matic 5000"))
 end
 
 --> Target Changed <-------------------------------------------------
